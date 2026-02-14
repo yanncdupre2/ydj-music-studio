@@ -5,9 +5,9 @@ Fill in missing genre and year metadata for tracks in the Apple Music library.
 You are working in the `ydj-music-studio` project. The library management scripts live in `library-management/`.
 
 ### Step 1: Research automated sources (ONE command)
-Run `research_tracks.py` reading directly from the smart playlist "Genre of Year Blank":
+Run `research_tracks.py` reading directly from the smart playlist "Genre or Year Blank":
 ```bash
-cd /Users/fydupre/Projects/ydj-music-studio/library-management && python3 research_tracks.py --playlist "Genre of Year Blank" --output /tmp/recommendations.json
+cd /Users/fydupre/Projects/ydj-music-studio/library-management && python3 research_tracks.py --playlist "Genre or Year Blank" --output /tmp/recommendations.json
 ```
 This queries Source A (duplicates in Apple Music) and Source D (MusicBrainz) for every track.
 
@@ -23,12 +23,15 @@ After filling in all sources, recompute the `consensus` field for each track usi
 
 Write the updated JSON back to `/tmp/recommendations.json`.
 
-### Step 3: Interactive tagging (ONE command)
-Run the interactive tagger:
+### Step 3: Interactive tagging (requires real terminal)
+The tagger needs interactive keypress input, so open it in a **new Terminal window**:
 ```bash
-cd /Users/fydupre/Projects/ydj-music-studio/library-management && python3 tag_tracks.py --input /tmp/recommendations.json
+osascript -e 'tell application "Terminal"
+    activate
+    do script "cd /Users/fydupre/Projects/ydj-music-studio && ./run-tagger.sh"
+end tell'
 ```
-The user presses 1 (primary genre), 2 (alternate genre), or S (skip) for each track. No additional confirmations needed.
+Tell the user: a Terminal window has opened. Press 1 (primary genre), 2 (alternate genre), or S (skip) for each track. No additional confirmations needed.
 
 ## Important notes
 - The 31 valid YDJ genres are in `common/genres.json` — always map to one of those

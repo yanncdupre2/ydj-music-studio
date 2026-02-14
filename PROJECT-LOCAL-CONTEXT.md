@@ -4,35 +4,26 @@
 Comprehensive DJ music production and library management system for YDJ, encompassing playlist optimization (harmonic mixing), Apple Music library metadata management, and YouTube media processing.
 
 ## Current Priority
-**Phase 1: Foundation & Organization**
+**Phase 2: Library Management Enhancement** (genre/year tagging workflow complete, cleanup improvements next)
 
-1. **Organize existing YDJ folder contents into modular structure**
-   - Move existing scripts from ~/Projects/YDJ/ into organized subfolders
-   - Create mixer/, library-management/, downloads/, common/, data/ structure
-   - Preserve existing functionality during migration
+## Completed Phases
+- ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
+- ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
 
-2. **Extract and store canonical genre taxonomy**
-   - Create `common/genres.json` with 31 compound genres from Apple Music library
-   - Use exact genre strings as they appear (20+ songs threshold)
-
-3. **Set up Python environment and Git repository**
-   - Fresh venv with requirements.txt
-   - Initialize git, create .gitignore (venv, CSV, XML, media files)
-   - Push to GitHub: https://github.com/fydupre/ydj-music-studio
-
-## Recent Session (2026-02-13)
-- ✅ Renamed project from "DJ Music Library Manager" to "YDJ Music Studio"
-- ✅ Updated idea document with comprehensive features and phases
-- ✅ Created project scaffold at `/Users/fydupre/Projects/ydj-music-studio/`
-- ✅ Generated PLANNING.md with vision, strategy, and 5-phase roadmap
-- **Next**: Migrate YDJ folder contents into organized structure
+## Recent Session (2026-02-14)
+- ✅ Ran `/fill-missing-genres-years` workflow end-to-end on 14 tracks
+- ✅ All YDJ MASTER playlist tracks now have genre and year set
+- ✅ Fixed playlist name in skill: "Genre of Year Blank" → "Genre or Year Blank"
+- ✅ Created `run-tagger.sh` wrapper script for correct directory handling
+- ✅ Updated skill Step 3 to open Terminal window (tagger needs interactive TTY)
+- **Next**: Cleanup improvements, BPM/key auditing, or Phase 3 (mixer improvements)
 
 ## Constraints and Conventions
 
 ### Safety Constraints
-- **READ-ONLY Apple Music for now**: Use XML exports only; defer write operations to Phase 4
+- **AppleScript writes are live**: Year and genre updates go directly to Apple Music via AppleScript
 - **Always backup before bulk operations**: Apple Music library contains 10,000+ tracks
-- **Test in isolation first**: Any AppleScript write operations must be tested on separate test library
+- **Interactive confirmation**: Tagger requires manual keypress (1/2/S) per track — no unattended bulk writes
 
 ### Genre Taxonomy Rules
 - Use compound genres exactly as they appear in library (e.g., "EDM, House, Techno")
@@ -104,14 +95,16 @@ ydj-music-studio/
 └── src/                           # Future: compiled Rust binaries
 ```
 
-### Critical Files (Existing in ~/Projects/YDJ/)
-- `mixer.py` - 25KB, sophisticated simulated annealing optimizer
-- `camelot.py` - 10KB, Camelot wheel implementation
-- `cleanup.py` - Discrepancy detection across track variants
-- `music_library.py` - Apple Music XML reader
-- `rename_music_file.py` - File renaming based on tags
-- Shell scripts in `ydj dl/` - Media processing pipeline
-- `~/YDJ Library.xml` - Apple Music library export (user maintains separately)
+### Key Files
+- `library-management/research_tracks.py` - 4-source metadata research (duplicates, LLM, web, MusicBrainz)
+- `library-management/tag_tracks.py` - Interactive single-keypress batch tagger (AppleScript writes)
+- `library-management/sources/genre_mapper.py` - Genre mapping and consensus logic
+- `library-management/sources/duplicates.py` - Source A: duplicate-based metadata inference
+- `library-management/sources/musicbrainz.py` - Source D: MusicBrainz API queries
+- `run-tagger.sh` - Wrapper script to run tagger from project root
+- `mixer/mixer.py` - Simulated annealing playlist optimizer
+- `mixer/camelot.py` - Camelot wheel implementation
+- `common/genres.json` - Canonical 31-genre taxonomy
 
 ## Run Commands / Environment
 
@@ -130,13 +123,10 @@ pip install -r requirements.txt
 - fuzzywuzzy (fuzzy string matching)
 - python-Levenshtein (fuzzywuzzy speedup)
 
-### Apple Music Library Export
-**Manual Process (for now):**
-1. Open Apple Music → File → Library → Export Library
-2. Save as `~/YDJ Library.xml`
-3. Scripts read from this location
-
-**Future:** Direct AppleScript integration (Phase 4)
+### Apple Music Integration
+**Reading:** Smart playlists read directly via AppleScript (e.g., "Genre or Year Blank")
+**Writing:** Year and genre updated via AppleScript (`tag_tracks.py`)
+**XML Export:** Still used by some legacy scripts (`~/YDJ Library.xml`)
 
 ### Media Processing (ffmpeg)
 ```bash
@@ -177,41 +167,18 @@ python3 mixer.py
 - **Processed Media**: Moved to `processed/` subfolder after conversion
 - **Working Directory**: Downloads happen outside repo; scripts process in-place
 
-### External APIs (Future)
-- MusicBrainz: Release dates, genres
-- Discogs: DJ-focused metadata
-- Spotify: Audio features, modern genres
-- Last.fm: Genre tags, similar artists
+### External APIs
+- ✅ MusicBrainz: Release dates, genres (integrated in `sources/musicbrainz.py`, 1 req/sec rate limit)
+- Discogs: DJ-focused metadata (future)
+- Spotify: Audio features, modern genres (future)
+- Last.fm: Genre tags, similar artists (future)
 
-## Next Actions
-
-1. **Create genre taxonomy JSON**
-   - Extract 31 genres from Apple Music XML
-   - Save to `common/genres.json`
-   - Format: simple array of strings
-
-2. **Migrate YDJ folder contents**
-   - Move `mixer.py`, `camelot.py` → `mixer/`
-   - Move `cleanup.py`, `music_library.py`, `rename_music_file.py` → `library-management/`
-   - Move shell scripts from `ydj dl/` → `downloads/`
-   - Move CSV files → `data/`
-   - Create venv in new location
-
-3. **Create requirements.txt**
-   - pandas, numpy, mutagen, fuzzywuzzy, python-Levenshtein
-   - Test installation in fresh venv
-
-4. **Initialize Git repository**
-   - Create .gitignore (venv/, data/exports/, *.csv, *.xml, processed/)
-   - Initial commit with migrated structure
-   - Create GitHub repo and push
-
-5. **Create subfolder README and CLAUDE.md files**
-   - Document each subsystem's purpose and usage
-   - Provide focused AI context for each domain
+## Slash Commands
+- `/fill-missing-genres-years` — End-to-end workflow: research → LLM/web fill → interactive tagging
+- `/rebaseline-project` — Update docs and commit to GitHub
+- `/update-project-todos` — Sync Todoist
 
 ## Notes
-- Existing YDJ folder at `~/Projects/YDJ/` will be renamed to `ydj-music-studio` after migration
-- CSV files are legacy; will eventually be replaced by direct XML parsing
-- Virtual environment in `path/to/venv/` is old; creating fresh one
-- Keep shell scripts executable: `chmod +x downloads/*.sh`
+- Smart playlist "Genre or Year Blank" drives the tagging workflow
+- The tagger (`tag_tracks.py`) requires a real TTY — must run in Terminal, not in Claude Code's Bash tool
+- `run-tagger.sh` at project root handles the `cd` to `library-management/` automatically
