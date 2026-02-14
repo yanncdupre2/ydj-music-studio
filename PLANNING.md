@@ -13,7 +13,7 @@
 - **Current Name:** YDJ Music Studio
 - **Status:** Planning
 - **Created:** 2026-02-13
-- **GitHub:** https://github.com/fydupre/ydj-music-studio
+- **GitHub:** https://github.com/yanncdupre2/ydj-music-studio
 
 ## Vision and Scope
 

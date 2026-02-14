@@ -107,4 +107,4 @@ Personal project for YDJ music production workflows.
 
 ## GitHub
 
-https://github.com/fydupre/ydj-music-studio
+https://github.com/yanncdupre2/ydj-music-studio
