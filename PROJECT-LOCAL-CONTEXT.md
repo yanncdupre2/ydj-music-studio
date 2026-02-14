@@ -10,13 +10,13 @@ Comprehensive DJ music production and library management system for YDJ, encompa
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
 
-## Recent Session (2026-02-14)
-- ✅ Ran `/fill-missing-genres-years` workflow end-to-end on 14 tracks
-- ✅ All YDJ MASTER playlist tracks now have genre and year set
-- ✅ Fixed playlist name in skill: "Genre of Year Blank" → "Genre or Year Blank"
-- ✅ Created `run-tagger.sh` wrapper script for correct directory handling
-- ✅ Updated skill Step 3 to open Terminal window (tagger needs interactive TTY)
-- **Next**: Cleanup improvements, BPM/key auditing, or Phase 3 (mixer improvements)
+## Recent Session (2026-02-21)
+- ✅ Built interactive inconsistency resolver (detect → research → fix/ignore per group)
+- ✅ Added `add_tracks_to_playlist()` AppleScript capability to `common/apple_music.py`
+- ✅ Created `/resolve-inconsistencies` slash command (229 groups detected in 8,549 DJ tracks)
+- ✅ Source A computed from group majority (no extra library search needed)
+- ✅ "Ignore year or genre inconsistencies" playlist auto-created and used for filtering
+- **Next**: Run `/resolve-inconsistencies` to resolve 229 groups, then BPM/key auditing
 
 ## Constraints and Conventions
 
@@ -98,12 +98,14 @@ ydj-music-studio/
 ### Key Files
 - `library-management/research_tracks.py` - 4-source metadata research (duplicates, LLM, web, MusicBrainz)
 - `library-management/tag_tracks.py` - Interactive single-keypress batch tagger (AppleScript writes)
+- `library-management/resolve_inconsistencies.py` - Phase 1: detect inconsistency groups + MusicBrainz research
+- `library-management/resolve_tagger.py` - Phase 2: interactive resolver (Fix/Ignore/Skip per group)
 - `library-management/sources/genre_mapper.py` - Genre mapping and consensus logic
 - `library-management/sources/duplicates.py` - Source A: duplicate-based metadata inference
 - `library-management/sources/musicbrainz.py` - Source D: MusicBrainz API queries
-- `run-tagger.sh` - Wrapper script to run tagger from project root
-- `mixer/mixer.py` - Simulated annealing playlist optimizer
-- `mixer/camelot.py` - Camelot wheel implementation
+- `run-tagger.sh` - Wrapper to run tag_tracks.py from project root
+- `run-resolver.sh` - Wrapper to run resolve_tagger.py from project root
+- `common/apple_music.py` - XML reader + AppleScript playlist management
 - `common/genres.json` - Canonical 31-genre taxonomy
 
 ## Run Commands / Environment
@@ -175,10 +177,12 @@ python3 mixer.py
 
 ## Slash Commands
 - `/fill-missing-genres-years` — End-to-end workflow: research → LLM/web fill → interactive tagging
+- `/resolve-inconsistencies` — Detect and resolve year/genre conflicts across track variants (229 groups)
 - `/rebaseline-project` — Update docs and commit to GitHub
 - `/update-project-todos` — Sync Todoist
 
 ## Notes
-- Smart playlist "Genre or Year Blank" drives the tagging workflow
-- The tagger (`tag_tracks.py`) requires a real TTY — must run in Terminal, not in Claude Code's Bash tool
-- `run-tagger.sh` at project root handles the `cd` to `library-management/` automatically
+- Smart playlist "Genre or Year Blank" drives the missing-metadata tagging workflow
+- "Ignore year or genre inconsistencies" playlist filters out already-resolved groups
+- Interactive scripts (`tag_tracks.py`, `resolve_tagger.py`) require a real TTY — run via `run-tagger.sh` / `run-resolver.sh`
+- XML export (`~/YDJ Library.xml`) used for bulk detection; AppleScript used for reads/writes

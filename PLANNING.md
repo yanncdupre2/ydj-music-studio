@@ -87,14 +87,16 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Web search + LLM knowledge for gap-filling (Sources B + C)
 - ✅ Interactive single-keypress tagger (`tag_tracks.py`)
 - ✅ `/fill-missing-genres-years` slash command for streamlined workflow
+- ✅ Interactive inconsistency resolver for track variants (`resolve_inconsistencies.py` + `resolve_tagger.py`)
+- ✅ Add-to-playlist AppleScript capability (`add_tracks_to_playlist()` in `common/apple_music.py`)
+- ✅ `/resolve-inconsistencies` slash command (229 groups detected across 8,549 DJ tracks)
 - 🚧 Audit library metadata quality (missing BPMs, keys)
-- 🚧 Enhance cleanup.py for interactive discrepancy resolution
 - BPM detection and tagging for tracks missing tempo data
 
 **Success Criteria:**
 - ✅ All YDJ MASTER playlist tracks have genre and year set
 - ✅ Consistent genre categorization using compound taxonomy
-- Interactive cleanup workflow for resolving discrepancies
+- ✅ Interactive cleanup workflow for resolving discrepancies (Fix/Ignore/Skip per group)
 
 ### Phase 3: Mixer Improvements
 **Goal:** Make playlist optimization more seamless and practical
