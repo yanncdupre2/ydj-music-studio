@@ -1,6 +1,7 @@
 import os
 import re
 import plistlib
+import subprocess
 import pandas as pd
 import unicodedata
 
@@ -156,6 +157,53 @@ def load_library():
         rows.append(row)
     df = pd.DataFrame(rows)
     return df
+
+def add_tracks_to_playlist(track_ids, playlist_name):
+    """Add tracks to an Apple Music playlist by database ID.
+
+    Creates the playlist if it doesn't exist.
+
+    Args:
+        track_ids (list): List of database IDs (int or str)
+        playlist_name (str): Target playlist name
+
+    Returns:
+        tuple: (success_count, error_count)
+    """
+    escaped_name = playlist_name.replace('"', '\\"')
+    id_list = ', '.join(str(tid) for tid in track_ids)
+    script = f'''
+    tell application "Music"
+        try
+            set targetPlaylist to user playlist "{escaped_name}"
+        on error
+            set targetPlaylist to (make new user playlist with properties {{name:"{escaped_name}"}})
+        end try
+        set successCount to 0
+        set errorCount to 0
+        repeat with trackID in {{{id_list}}}
+            try
+                set aTrack to (first track of library playlist 1 whose database ID is trackID)
+                duplicate aTrack to targetPlaylist
+                set successCount to successCount + 1
+            on error
+                set errorCount to errorCount + 1
+            end try
+        end repeat
+        return (successCount as text) & "," & (errorCount as text)
+    end tell
+    '''
+    try:
+        result = subprocess.run(
+            ['osascript', '-e', script],
+            capture_output=True, text=True, check=True
+        )
+        parts = result.stdout.strip().split(',')
+        return int(parts[0]), int(parts[1])
+    except subprocess.CalledProcessError as e:
+        print(f"Error adding tracks to playlist: {e.stderr}")
+        return 0, len(track_ids)
+
 
 def remove_accents(text):
     """Remove accented characters from a given string."""
