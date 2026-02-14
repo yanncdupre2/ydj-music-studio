@@ -1,0 +1,320 @@
+{
+  "timestamp": "20260213_183550",
+  "artist": "No Copyright Music",
+  "field": "year",
+  "new_value": 2022,
+  "total_tracks": 44,
+  "successful": 44,
+  "failed": 0,
+  "duration_seconds": 35.493789196014404,
+  "tracks": [
+    {
+      "track_id": "57330",
+      "name": "(Ambient + Calm) Eden by Onycs",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57354",
+      "name": "(Ambient + Calm) Fragments by AER\u00d8HEAD",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57414",
+      "name": "(Dance Electronics + Bright) Puzzle by Roa",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57420",
+      "name": "(Dance Electronics + Bright) Sleepless Nights by Roa",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57423",
+      "name": "(Dance Electronics + Bright) Soaring by Ghostrifter Official",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57438",
+      "name": "(Dance Electronics + Bright) Time Out by Atch",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57309",
+      "name": "(Dance Electronics + Calm) Aural Nights by Music by Aden",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57312",
+      "name": "(Dance Electronics + Calm) Awakening by Rexlambo",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57345",
+      "name": "(Dance Electronics + Calm) Fly away by Rexlambo",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57351",
+      "name": "(Dance Electronics + Calm) Found You by Atch",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57399",
+      "name": "(Dance Electronics + Calm) Nouvelle Lune by AWN",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57402",
+      "name": "(Dance Electronics + Calm) Over You by Atch",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57408",
+      "name": "(Dance Electronics + Calm) Papaya by tubebackr",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57441",
+      "name": "(Dance Electronics + Calm) Travel by JayJen & tubebackr",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57384",
+      "name": "(Dance Electronics + Dark) A Magical Journey Through Space by Leonell Cassio",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57327",
+      "name": "(Dance Electronics + Dramatic) Dystopia by Luke Hall",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57381",
+      "name": "(Dance Electronics + Dramatic) Let Go by tubebackr",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57363",
+      "name": "(Dance Electronics + Funky) Gonna Sing by Peyruis",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57435",
+      "name": "(Dance Electronics + Funky) Swing Rabbit ! Swing ! by Amaria\u0300",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57342",
+      "name": "(Dance Electronics + Happy) Fluffy by Smith The Mister",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57411",
+      "name": "(Dance Electronics + Happy) Pixel Pig by Di Young",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57447",
+      "name": "(Dance Electronics + Happy) Vacaciones by Mike Leite",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57366",
+      "name": "(Dance Electronics + Inspirational) Inspire by ASHUTOSH",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57375",
+      "name": "(Dance Electronics + Inspirational) Journey by Atch",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57453",
+      "name": "(Dance Electronics + Romantic) Woho, I Thought It Be Me & You by Leonell Cassio & Lily Hain",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57321",
+      "name": "(Hip Hop + Sad) Clocks by Smith The Mister",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57315",
+      "name": "(Hip Hop Rap + Calm) Cali by Wataboi",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57336",
+      "name": "(Hip Hop Rap + Calm) Far Away by Sarah Jansen",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57357",
+      "name": "(Hip Hop Rap + Calm) Free Range by Mona Wonderlick",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57390",
+      "name": "(Hip Hop Rap + Calm) Mitsubachi by Smith The Mister",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57393",
+      "name": "(Hip Hop Rap + Calm) Morning Station by Tokyo Music Walker",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57444",
+      "name": "(Hip Hop Rap + Calm) Underground Stars by Loxbeats",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57387",
+      "name": "(Hip Hop Rap + Funky) Malecon by Soyb & Amine Maxwell",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57417",
+      "name": "(Hip Hop Rap + Happy) Riviera by Smith The Mister",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57360",
+      "name": "(Holiday + Happy) Freedom by Roa",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57450",
+      "name": "(Jazz Blues + Funky) When I Was A Boy by Tokyo Music Walker",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57324",
+      "name": "(Pop + Calm) Colorful Flowers by Tokyo Music Walker",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57429",
+      "name": "(Pop + Calm) Summertime by Tokyo Music Walker",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57378",
+      "name": "(Pop + Dark) Late to Rise by Your Friend, Ghosyobbzsmokedoutphonk",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57405",
+      "name": "(Pop + Dramatic) Overthinking",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57348",
+      "name": "(Pop + Happy) Forever by Aden",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57426",
+      "name": "(Pop + Happy) Summer Vibes by Mike Leite",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57369",
+      "name": "(Reggae + Romantic) Intencio\u0301n by Sapajou",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    },
+    {
+      "track_id": "57372",
+      "name": "(Rock + Angry) Jetfire by Jeff II",
+      "status": "success",
+      "old_year": null,
+      "new_year": 2022
+    }
+  ]
+}
