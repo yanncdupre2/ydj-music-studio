@@ -6,6 +6,115 @@ import unicodedata
 
 XML_LIBRARY_PATH = "~/YDJ Library.xml"
 
+def load_raw_library():
+    """
+    Load the raw Apple Music library plist data.
+
+    Returns:
+        dict: Raw library data with 'Tracks' and 'Playlists' keys
+    """
+    path = os.path.expanduser(XML_LIBRARY_PATH)
+    with open(path, 'rb') as f:
+        return plistlib.load(f)
+
+def get_playlists():
+    """
+    Get list of all playlists in the library.
+
+    Returns:
+        list of dict: Each dict contains 'Name', 'Playlist ID', and 'Track Count'
+    """
+    library_data = load_raw_library()
+    playlists = library_data.get("Playlists", [])
+
+    result = []
+    for playlist in playlists:
+        result.append({
+            "Name": playlist.get("Name", "Unknown"),
+            "Playlist ID": playlist.get("Playlist Persistent ID", ""),
+            "Track Count": len(playlist.get("Playlist Items", []))
+        })
+    return result
+
+def get_playlist_track_ids(playlist_name):
+    """
+    Get set of Track IDs for a specific playlist.
+
+    Args:
+        playlist_name (str): Name of the playlist (case-sensitive)
+
+    Returns:
+        set: Set of Track IDs (as strings) in the playlist
+
+    Raises:
+        ValueError: If playlist not found
+    """
+    library_data = load_raw_library()
+    playlists = library_data.get("Playlists", [])
+
+    for playlist in playlists:
+        if playlist.get("Name") == playlist_name:
+            items = playlist.get("Playlist Items", [])
+            return {str(item["Track ID"]) for item in items}
+
+    raise ValueError(f"Playlist '{playlist_name}' not found")
+
+def load_playlist(playlist_name):
+    """
+    Load tracks from a specific playlist.
+
+    Args:
+        playlist_name (str): Name of the playlist
+
+    Returns:
+        pd.DataFrame: DataFrame containing only tracks from the playlist
+    """
+    track_ids = get_playlist_track_ids(playlist_name)
+    df = load_library()
+    return df[df["Track ID"].isin(track_ids)]
+
+def load_dj_playlists():
+    """
+    Load tracks from both DJ master playlists (MASTER LIST DJ AUDIO and MASTER LIST DJ VIDEO).
+
+    Returns:
+        pd.DataFrame: DataFrame containing tracks from both DJ playlists (no duplicates)
+    """
+    try:
+        audio_ids = get_playlist_track_ids("MASTER LIST DJ AUDIO")
+    except ValueError:
+        audio_ids = set()
+
+    try:
+        video_ids = get_playlist_track_ids("MASTER LIST DJ VIDEO")
+    except ValueError:
+        video_ids = set()
+
+    dj_track_ids = audio_ids | video_ids  # Union of both sets
+    df = load_library()
+    return df[df["Track ID"].isin(dj_track_ids)]
+
+def filter_library_to_playlists(df, playlist_names):
+    """
+    Filter a library DataFrame to only include tracks from specified playlists.
+
+    Args:
+        df (pd.DataFrame): Library DataFrame from load_library()
+        playlist_names (list of str): List of playlist names to include
+
+    Returns:
+        pd.DataFrame: Filtered DataFrame
+    """
+    all_track_ids = set()
+    for playlist_name in playlist_names:
+        try:
+            track_ids = get_playlist_track_ids(playlist_name)
+            all_track_ids |= track_ids
+        except ValueError:
+            print(f"Warning: Playlist '{playlist_name}' not found, skipping")
+
+    return df[df["Track ID"].isin(all_track_ids)]
+
 def load_library():
     path = os.path.expanduser(XML_LIBRARY_PATH)
     with open(path, 'rb') as f:

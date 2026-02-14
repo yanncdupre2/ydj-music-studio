@@ -1,105 +1,158 @@
-import pandas as pd
+#!/usr/bin/env python3
+"""
+Library Cleanup - Discrepancy Detection
+
+Identifies tracks with inconsistent metadata across variants.
+Focuses on DJ playlists only (MASTER LIST DJ AUDIO and MASTER LIST DJ VIDEO).
+
+Usage:
+    python3 cleanup.py                    # Analyze DJ playlists only
+    python3 cleanup.py --all-library      # Analyze entire library
+    python3 cleanup.py --playlist "Name"  # Analyze specific playlist
+"""
+import sys
 import os
-import plistlib
-import re
+import argparse
 
-def clean_title(title):
+# Add parent directory to path for common imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from common.apple_music import (
+    load_library, load_dj_playlists, load_playlist,
+    remove_accents, normalize_title
+)
+import pandas as pd
+
+
+def find_discrepancies(df, source_description="library"):
     """
-    Clean up the title by removing video-related tags and converting to lowercase.
+    Find tracks with inconsistent metadata across variants.
+
+    Args:
+        df (pd.DataFrame): Library DataFrame
+        source_description (str): Description of data source for display
+
+    Returns:
+        list: List of discrepancy groups sorted by most recent addition
     """
-    if not isinstance(title, str):
-        return ""  # Return empty string for null or non-string values
-    # Remove anything in parentheses with 'video' (case-insensitive)
-    title = re.sub(r'\(.*?video.*?\)', '', title, flags=re.IGNORECASE)
-    # Remove excess whitespace and convert to lowercase
-    return title.strip().lower()
+    # Create normalized title column
+    df['Normalized Title'] = df['Name'].apply(normalize_title)
 
-def clean_artist(artist):
+    # Compute grouping artist: use "Album Artist" if populated, else fallback to "Artist"
+    df['Grouping Artist'] = df.apply(
+        lambda row: remove_accents(row['Album Artist']) if row['Album Artist'].strip() != "" else remove_accents(row['Artist']),
+        axis=1
+    )
+
+    # Convert "Date Added" to datetime for proper sorting
+    df['Date Added'] = pd.to_datetime(df['Date Added'], errors='coerce')
+
+    # Group by "Grouping Artist" and normalized title
+    grouped = df.groupby(['Grouping Artist', 'Normalized Title'])
+
+    discrepancies = []
+
+    # Iterate through groups and check for discrepancies in Year, Genre, or Rating
+    for (group_artist, norm_title), group in grouped:
+        unique_years = group['Year'].unique()
+        unique_genres = group['Genre'].unique()
+        unique_ratings = group['Rating'].unique()
+
+        if len(unique_years) > 1 or len(unique_genres) > 1:  # or len(unique_ratings) > 1:
+            # Determine the most recent Date Added in the group
+            most_recent_date = group['Date Added'].max()
+            discrepancies.append({
+                'Grouping Artist': group_artist,
+                'Normalized Title': norm_title,
+                'Group Data': group,
+                'Most Recent Date': most_recent_date
+            })
+
+    # Order groups by the most recent Date Added (descending)
+    discrepancies = sorted(discrepancies, key=lambda x: x['Most Recent Date'], reverse=True)
+
+    print(f"\n{'='*60}")
+    print(f"Analyzing: {source_description}")
+    print(f"Total tracks: {len(df):,}")
+    print(f"Groups with discrepancies: {len(discrepancies)}")
+    print(f"{'='*60}\n")
+
+    return discrepancies
+
+
+def display_discrepancies(discrepancies):
     """
-    Clean up the artist name by removing anything after 'ft.', 'feat.', etc., and converting to lowercase.
+    Display discrepancies interactively.
+
+    Args:
+        discrepancies (list): List of discrepancy groups
     """
-    if not isinstance(artist, str):
-        return ""  # Return empty string for null or non-string values
-    # Remove anything after ft., feat., etc.
-    artist = re.split(r'\b(ft\.|feat\.|featuring)\b', artist, flags=re.IGNORECASE)[0]
-    # Remove excess whitespace and convert to lowercase
-    return artist.strip().lower()
+    if not discrepancies:
+        print("✓ No discrepancies found! All track variants have consistent metadata.")
+        return
 
-def preprocess_music_data(csv_file, output_file):
-    # Load the CSV file into a pandas DataFrame
-    df = pd.read_csv(csv_file)
+    for i, disc in enumerate(discrepancies, 1):
+        print("=" * 80)
+        print(f"Group {i}/{len(discrepancies)}")
+        print(f"Grouping Artist: {disc['Grouping Artist']}")
+        print(f"Song Group: {disc['Normalized Title']}")
+        print(f"Most Recent Date Added: {disc['Most Recent Date']}")
+        print("-" * 80)
 
-    # Ensure required columns exist
-    if 'Title' not in df.columns or 'Artist' not in df.columns:
-        raise ValueError("The CSV file must contain 'Title' and 'Artist' columns.")
+        # Display relevant columns
+        display_columns = ['Name', 'Track ID', 'Artist', 'Year', 'Genre', 'Rating', 'Date Added', 'Kind', 'Bit Rate', 'Size']
+        print(disc['Group Data'][display_columns].to_string(index=False))
+        print("=" * 80)
 
-    # Handle null values before applying cleaning functions
-    df['Title'] = df['Title'].fillna("")
-    df['Artist'] = df['Artist'].fillna("")
+        # Prompt to continue
+        if i < len(discrepancies):
+            response = input("\nPress Enter to view next group (or 'q' to quit): ")
+            if response.lower() == 'q':
+                print(f"\nStopped at group {i}/{len(discrepancies)}")
+                break
+        else:
+            print("\n✓ All discrepancies reviewed!")
 
-    # Add cleaned columns
-    df['Cleaned Title'] = df['Title'].apply(clean_title)
-    df['Cleaned Artist'] = df['Artist'].apply(clean_artist)
 
-    # Export to a new CSV
-    df.to_csv(output_file, index=False)
-    print(f"Cleaned data exported to '{output_file}'")
+def main():
+    parser = argparse.ArgumentParser(
+        description='Find metadata discrepancies in Apple Music library'
+    )
+    parser.add_argument(
+        '--all-library',
+        action='store_true',
+        help='Analyze entire library instead of just DJ playlists'
+    )
+    parser.add_argument(
+        '--playlist',
+        type=str,
+        help='Analyze specific playlist by name'
+    )
 
-# Main execution
+    args = parser.parse_args()
+
+    # Load appropriate data source
+    if args.playlist:
+        print(f"Loading playlist: {args.playlist}")
+        try:
+            df = load_playlist(args.playlist)
+            source_description = f'Playlist "{args.playlist}"'
+        except ValueError as e:
+            print(f"Error: {e}")
+            return
+    elif args.all_library:
+        print("Loading entire library...")
+        df = load_library()
+        source_description = "Entire library"
+    else:
+        print("Loading DJ playlists (MASTER LIST DJ AUDIO + VIDEO)...")
+        df = load_dj_playlists()
+        source_description = "DJ Playlists (MASTER LIST DJ AUDIO + VIDEO)"
+
+    # Find and display discrepancies
+    discrepancies = find_discrepancies(df, source_description)
+    display_discrepancies(discrepancies)
+
+
 if __name__ == "__main__":
-
-    # Replace with the actual path to your exported Music library XML
-    XML_LIBRARY_PATH = "~/YDJ Library.xml"  
-    XML_LIBRARY_PATH = os.path.expanduser(XML_LIBRARY_PATH)
-
-    with open(XML_LIBRARY_PATH, 'rb') as f:
-        library_data = plistlib.load(f)
-
-    # The 'Tracks' key in the plist contains all track entries
-    tracks_dict = library_data["Tracks"]
-
-
-    all_keys = set()
-    for track_info in tracks_dict.values():
-        all_keys.update(track_info.keys())
-
-    print("List of all keys found in your iTunes/Apple Music library XML:")
-    for key in sorted(all_keys):
-        print(key)
-
-    rows = []
-    for track_id, track_info in tracks_dict.items():
-        row = {
-            "Track ID": track_id,
-            "Name": track_info.get("Name", ""),
-            "Artist": track_info.get("Artist", ""),
-            "Album": track_info.get("Album", ""),
-            "Album Artist": track_info.get("Album Artist", ""),
-            "Genre": track_info.get("Genre", ""),
-            "Grouping": track_info.get("Grouping", ""),
-            "Comments": track_info.get("Comments", ""),
-            "Year": track_info.get("Year", ""),
-            "Rating": track_info.get("Rating", 0),                # 0–100?
-            "Play Count": track_info.get("Play Count", 0),
-            "Skip Count": track_info.get("Skip Count", 0),
-            "Checked": not track_info.get("Disabled", False),
-            "Duration (ms)": track_info.get("Total Time", 0),  # Duration in ms
-            "Bit Rate": track_info.get("Bit Rate", 0),
-            "Sample Rate": track_info.get("Sample Rate", 0),
-            "Size": track_info.get("Size", 0),                    # file size in bytes
-            "Kind": track_info.get("Kind", ""),
-            "Cloud Status": track_info.get("Cloud Status", ""),
-            "BPM": track_info.get("BPM", 0),
-            "Favorited": track_info.get("Favorited", False),           #  → True/False
-            "Compilation": track_info.get("Compilation", False),
-            "Date Added": track_info.get("Date Added", None),
-            "Last Played": track_info.get("Play Date UTC", None),
-            "Last Skipped": track_info.get("Skip Date", None),
-        }
-        rows.append(row)
-
-    df = pd.DataFrame(rows)
-
-    # Quick peek
-    print(df.head(10))
-    print(df.info())
+    main()
