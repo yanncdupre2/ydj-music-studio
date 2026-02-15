@@ -80,7 +80,11 @@ def apply_fix(group, year, genre, dry_run=False):
             print(f"  (dry run) Would set track {t['track_id']}: year={year}, genre={genre}")
             success += 1
         else:
-            ok = update_track_metadata(t['track_id'], year, genre)
+            ok = update_track_metadata(
+                t['track_id'], year, genre,
+                artist=t.get('artist'),
+                name=t.get('name')
+            )
             if ok:
                 success += 1
             else:

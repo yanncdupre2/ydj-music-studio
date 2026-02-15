@@ -10,13 +10,20 @@ Comprehensive DJ music production and library management system for YDJ, encompa
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
 
-## Recent Session (2026-02-21)
+## Recent Session (2026-02-15)
+- ✅ Fixed AppleScript track update reliability with artist+name search fallback
+- ✅ Enhanced `update_track_metadata()` to search by artist+name instead of database ID
+- ✅ Eliminated dependency on fresh XML exports for track updates
+- ✅ Updated `run-resolver.sh` and `run-tagger.sh` to auto-activate venv
+- ✅ Tested and validated `/resolve-inconsistencies` workflow (229 groups ready to resolve)
+- **Next**: Continue resolving inconsistency groups, then BPM/key auditing
+
+## Previous Session (2026-02-14)
 - ✅ Built interactive inconsistency resolver (detect → research → fix/ignore per group)
 - ✅ Added `add_tracks_to_playlist()` AppleScript capability to `common/apple_music.py`
 - ✅ Created `/resolve-inconsistencies` slash command (229 groups detected in 8,549 DJ tracks)
 - ✅ Source A computed from group majority (no extra library search needed)
 - ✅ "Ignore year or genre inconsistencies" playlist auto-created and used for filtering
-- **Next**: Run `/resolve-inconsistencies` to resolve 229 groups, then BPM/key auditing
 
 ## Constraints and Conventions
 
@@ -128,7 +135,9 @@ pip install -r requirements.txt
 ### Apple Music Integration
 **Reading:** Smart playlists read directly via AppleScript (e.g., "Genre or Year Blank")
 **Writing:** Year and genre updated via AppleScript (`tag_tracks.py`)
-**XML Export:** Still used by some legacy scripts (`~/YDJ Library.xml`)
+  - Primary: Artist+name search (reliable, no XML dependency)
+  - Fallback: Database ID (legacy compatibility)
+**XML Export:** Used for bulk metadata reading (`~/YDJ Library.xml`)
 
 ### Media Processing (ffmpeg)
 ```bash

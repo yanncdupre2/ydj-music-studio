@@ -90,6 +90,7 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Interactive inconsistency resolver for track variants (`resolve_inconsistencies.py` + `resolve_tagger.py`)
 - ✅ Add-to-playlist AppleScript capability (`add_tracks_to_playlist()` in `common/apple_music.py`)
 - ✅ `/resolve-inconsistencies` slash command (229 groups detected across 8,549 DJ tracks)
+- ✅ AppleScript artist+name search (eliminates stale XML database ID dependency)
 - 🚧 Audit library metadata quality (missing BPMs, keys)
 - BPM detection and tagging for tracks missing tempo data
 
@@ -97,6 +98,7 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ All YDJ MASTER playlist tracks have genre and year set
 - ✅ Consistent genre categorization using compound taxonomy
 - ✅ Interactive cleanup workflow for resolving discrepancies (Fix/Ignore/Skip per group)
+- ✅ Reliable track updates regardless of XML export freshness
 
 ### Phase 3: Mixer Improvements
 **Goal:** Make playlist optimization more seamless and practical
@@ -192,6 +194,24 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - Enables focused AI assistance within each domain
 - Common utilities shared via common/ folder
 - Each domain can evolve independently
+
+### Decision: Artist+Name Search for AppleScript Track Updates
+**Context:** AppleScript track updates were failing with "Can't get track" errors when using database IDs from XML export.
+
+**Decision:** Search tracks by artist + name instead of database ID, with database ID as fallback.
+
+**Rationale:**
+- Eliminates dependency on fresh XML exports (database IDs can become stale)
+- More reliable for finding the correct track in Apple Music's live database
+- Backwards compatible via fallback to database ID
+- Fixes ~50% failure rate in track updates
+
+**Alternatives Considered:**
+- Require fresh XML export before every operation: Rejected as manual and inconvenient
+- Database ID only: Rejected due to staleness issues
+- Direct AppleScript library queries instead of XML: Future enhancement, but artist+name search solves immediate problem
+
+**Date:** 2026-02-15
 
 ## Risks and Dependencies
 

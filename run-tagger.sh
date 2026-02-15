@@ -8,5 +8,8 @@
 #   ./run-tagger.sh --dry-run
 #   ./run-tagger.sh --input /path/to/other.json
 
+# Activate virtual environment
+source "$(dirname "$0")/venv/bin/activate" || exit 1
+
 cd "$(dirname "$0")/library-management" || exit 1
 python3 tag_tracks.py --input /tmp/recommendations.json "$@"
