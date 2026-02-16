@@ -158,6 +158,178 @@ def load_library():
     df = pd.DataFrame(rows)
     return df
 
+def load_playlist_from_app(playlist_name):
+    """Load tracks from an Apple Music playlist directly via AppleScript.
+
+    No XML export needed — reads live data with current database IDs.
+
+    Args:
+        playlist_name (str): Name of the playlist (case-sensitive)
+
+    Returns:
+        pd.DataFrame: DataFrame with columns matching load_library() output
+    """
+    escaped_name = playlist_name.replace('"', '\\"')
+    script = f'''
+    tell application "Music"
+        set pl to user playlist "{escaped_name}"
+        set trackList to {{}}
+        repeat with aTrack in tracks of pl
+            set tid to database ID of aTrack
+            set tname to name of aTrack
+            set tartist to artist of aTrack
+
+            try
+                set talbumArtist to album artist of aTrack
+            on error
+                set talbumArtist to ""
+            end try
+
+            try
+                set tyear to year of aTrack
+            on error
+                set tyear to 0
+            end try
+
+            try
+                set tgenre to genre of aTrack
+            on error
+                set tgenre to ""
+            end try
+
+            try
+                set tkind to kind of aTrack
+            on error
+                set tkind to ""
+            end try
+
+            try
+                set tdateAdded to date added of aTrack
+            on error
+                set tdateAdded to ""
+            end try
+
+            set trackData to (tid as text) & "|||" & tname & "|||" & tartist & "|||" & talbumArtist & "|||" & (tyear as text) & "|||" & tgenre & "|||" & tkind & "|||" & (tdateAdded as text)
+            set end of trackList to trackData
+        end repeat
+        set AppleScript's text item delimiters to linefeed
+        return trackList as text
+    end tell
+    '''
+    try:
+        result = subprocess.run(
+            ['osascript', '-e', script],
+            capture_output=True, text=True, check=True
+        )
+    except subprocess.CalledProcessError as e:
+        raise ValueError(f"Error reading playlist '{playlist_name}': {e.stderr}")
+
+    rows = []
+    for line in result.stdout.strip().split('\n'):
+        if not line:
+            continue
+        parts = line.split('|||')
+        if len(parts) >= 7:
+            year_val = parts[4].strip()
+            try:
+                year = int(year_val) if year_val and year_val != '0' else ''
+            except ValueError:
+                year = ''
+            rows.append({
+                'Track ID': parts[0].strip(),
+                'Name': parts[1].strip(),
+                'Artist': parts[2].strip(),
+                'Album Artist': parts[3].strip(),
+                'Year': year,
+                'Genre': parts[4 + 1].strip(),
+                'Kind': parts[5 + 1].strip(),
+                'Date Added': parts[6 + 1].strip() if len(parts) > 7 else None,
+            })
+
+    return pd.DataFrame(rows)
+
+
+def get_playlist_track_ids_from_app(playlist_name):
+    """Get set of database IDs for a playlist directly from Apple Music.
+
+    No XML export needed.
+
+    Args:
+        playlist_name (str): Name of the playlist (case-sensitive)
+
+    Returns:
+        set: Set of database IDs (as strings)
+
+    Raises:
+        ValueError: If playlist not found or AppleScript error
+    """
+    escaped_name = playlist_name.replace('"', '\\"')
+    script = f'''
+    tell application "Music"
+        set pl to user playlist "{escaped_name}"
+        set idList to {{}}
+        repeat with aTrack in tracks of pl
+            set end of idList to (database ID of aTrack) as text
+        end repeat
+        set AppleScript's text item delimiters to linefeed
+        return idList as text
+    end tell
+    '''
+    try:
+        result = subprocess.run(
+            ['osascript', '-e', script],
+            capture_output=True, text=True, check=True
+        )
+    except subprocess.CalledProcessError as e:
+        raise ValueError(f"Playlist '{playlist_name}' not found or error: {e.stderr}")
+
+    ids = set()
+    for line in result.stdout.strip().split('\n'):
+        line = line.strip()
+        if line:
+            ids.add(line)
+    return ids
+
+
+def verify_track(track_id, expected_artist, expected_name):
+    """Verify a track's database ID matches the expected artist and name.
+
+    Args:
+        track_id: Database ID to check
+        expected_artist: Expected artist name
+        expected_name: Expected track name
+
+    Returns:
+        tuple: (matches: bool, actual_artist: str, actual_name: str)
+    """
+    script = f'''
+    tell application "Music"
+        try
+            set aTrack to (first track of library playlist 1 whose database ID is {track_id})
+            set tname to name of aTrack
+            set tartist to artist of aTrack
+            return tartist & "|||" & tname
+        on error
+            return "NOT_FOUND|||NOT_FOUND"
+        end try
+    end tell
+    '''
+    try:
+        result = subprocess.run(
+            ['osascript', '-e', script],
+            capture_output=True, text=True, check=True
+        )
+        parts = result.stdout.strip().split('|||')
+        if len(parts) == 2:
+            actual_artist = parts[0].strip()
+            actual_name = parts[1].strip()
+            matches = (actual_artist == expected_artist and actual_name == expected_name)
+            return matches, actual_artist, actual_name
+    except subprocess.CalledProcessError:
+        pass
+    return False, '', ''
+
+
 def add_tracks_to_playlist(track_ids, playlist_name):
     """Add tracks to an Apple Music playlist by database ID.
 

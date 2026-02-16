@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from tag_tracks import update_track_metadata
-from common.apple_music import add_tracks_to_playlist
+from common.apple_music import add_tracks_to_playlist, verify_track
 
 IGNORE_PLAYLIST = "Ignore year or genre inconsistencies"
 
@@ -76,6 +76,17 @@ def apply_fix(group, year, genre, dry_run=False):
     success = 0
     errors = 0
     for t in group['tracks']:
+        # Verify track ID matches expected artist+name before any update
+        matches, actual_artist, actual_name = verify_track(
+            t['track_id'], t.get('artist', ''), t.get('name', '')
+        )
+        if not matches:
+            print(f"  SKIPPED track {t['track_id']}: ID mismatch!")
+            print(f"    Expected: {t.get('artist')} - {t.get('name')}")
+            print(f"    Actual:   {actual_artist} - {actual_name}")
+            errors += 1
+            continue
+
         if dry_run:
             print(f"  (dry run) Would set track {t['track_id']}: year={year}, genre={genre}")
             success += 1

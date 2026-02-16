@@ -22,8 +22,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from common.apple_music import (
-    load_library, load_dj_playlists, load_playlist,
-    get_playlist_track_ids, remove_accents, normalize_title
+    load_playlist_from_app, get_playlist_track_ids_from_app,
+    remove_accents, normalize_title
 )
 from sources.musicbrainz import get_musicbrainz
 from sources.genre_mapper import determine_consensus
@@ -167,19 +167,19 @@ def main():
                         help='Analyze specific playlist by name')
     args = parser.parse_args()
 
-    # Load tracks
+    # Load tracks directly from Apple Music via AppleScript (no XML)
     if args.playlist:
-        print(f"Loading playlist: {args.playlist}")
-        df = load_playlist(args.playlist)
+        print(f"Loading playlist from Apple Music: {args.playlist}")
+        df = load_playlist_from_app(args.playlist)
         source_desc = f'Playlist "{args.playlist}"'
     elif args.all_library:
-        print("Loading entire library...")
-        df = load_library()
-        source_desc = "Entire library"
+        print("Loading DJ AUDIO + VIDEO from Apple Music (--all-library not supported without XML)...")
+        df = load_playlist_from_app("DJ AUDIO + VIDEO")
+        source_desc = "DJ AUDIO + VIDEO"
     else:
-        print("Loading DJ playlists (MASTER LIST DJ AUDIO + VIDEO)...")
-        df = load_dj_playlists()
-        source_desc = "DJ Playlists"
+        print("Loading DJ AUDIO + VIDEO playlist from Apple Music...")
+        df = load_playlist_from_app("DJ AUDIO + VIDEO")
+        source_desc = "DJ AUDIO + VIDEO"
 
     # Detect groups
     groups = detect_inconsistency_groups(df)
@@ -187,9 +187,9 @@ def main():
     print(f"Total tracks: {len(df):,}")
     print(f"Groups with inconsistencies: {len(groups)}")
 
-    # Filter out ignored groups
+    # Filter out ignored groups (read from Apple Music directly)
     try:
-        ignore_ids = get_playlist_track_ids(IGNORE_PLAYLIST)
+        ignore_ids = get_playlist_track_ids_from_app(IGNORE_PLAYLIST)
         before = len(groups)
         groups = filter_ignored_groups(groups, ignore_ids)
         filtered = before - len(groups)
