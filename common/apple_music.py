@@ -209,7 +209,25 @@ def load_playlist_from_app(playlist_name):
                 set tdateAdded to ""
             end try
 
-            set trackData to (tid as text) & "|||" & tname & "|||" & tartist & "|||" & talbumArtist & "|||" & (tyear as text) & "|||" & tgenre & "|||" & tkind & "|||" & (tdateAdded as text)
+            try
+                set tbpm to bpm of aTrack
+            on error
+                set tbpm to 0
+            end try
+
+            try
+                set tcomment to comment of aTrack
+            on error
+                set tcomment to ""
+            end try
+
+            try
+                set trating to rating of aTrack
+            on error
+                set trating to 0
+            end try
+
+            set trackData to (tid as text) & "|||" & tname & "|||" & tartist & "|||" & talbumArtist & "|||" & (tyear as text) & "|||" & tgenre & "|||" & tkind & "|||" & (tdateAdded as text) & "|||" & (tbpm as text) & "|||" & tcomment & "|||" & (trating as text)
             set end of trackList to trackData
         end repeat
         set AppleScript's text item delimiters to linefeed
@@ -235,6 +253,17 @@ def load_playlist_from_app(playlist_name):
                 year = int(year_val) if year_val and year_val != '0' else ''
             except ValueError:
                 year = ''
+            bpm_val = parts[8].strip() if len(parts) > 8 else '0'
+            try:
+                bpm = int(bpm_val) if bpm_val else 0
+            except ValueError:
+                bpm = 0
+            comment = parts[9].strip() if len(parts) > 9 else ''
+            rating_val = parts[10].strip() if len(parts) > 10 else '0'
+            try:
+                rating = int(rating_val) if rating_val else 0
+            except ValueError:
+                rating = 0
             rows.append({
                 'Track ID': parts[0].strip(),
                 'Name': parts[1].strip(),
@@ -244,9 +273,37 @@ def load_playlist_from_app(playlist_name):
                 'Genre': parts[4 + 1].strip(),
                 'Kind': parts[5 + 1].strip(),
                 'Date Added': parts[6 + 1].strip() if len(parts) > 7 else None,
+                'BPM': bpm,
+                'Comments': comment,
+                'Rating': rating,
             })
 
     return pd.DataFrame(rows)
+
+
+def load_dj_playlists_from_app():
+    """Load tracks from both DJ master playlists via AppleScript.
+
+    Reads from "MASTER LIST DJ AUDIO" and "MASTER LIST DJ VIDEO" playlists,
+    combines them, and removes duplicates by Track ID.
+
+    Returns:
+        pd.DataFrame: Combined DataFrame with tracks from both DJ playlists
+    """
+    frames = []
+    for name in ["MASTER LIST DJ AUDIO", "MASTER LIST DJ VIDEO"]:
+        try:
+            df = load_playlist_from_app(name)
+            frames.append(df)
+        except ValueError as e:
+            print(f"Warning: {e}")
+
+    if not frames:
+        return pd.DataFrame()
+
+    combined = pd.concat(frames, ignore_index=True)
+    combined = combined.drop_duplicates(subset="Track ID", keep="first")
+    return combined
 
 
 def get_playlist_track_ids_from_app(playlist_name):

@@ -3,12 +3,13 @@ import os
 import math
 import random
 import copy
+import time
 import pandas as pd
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from common.apple_music import load_library
+from common.apple_music import load_playlist_from_app
 from camelot import parse_camelot, shift_camelot_key, extract_key_from_comments, camelot_to_pitch, pitch_to_camelot
 
 import unicodedata
@@ -35,7 +36,7 @@ SHIFT_WEIGHT = 1
 
 # Annealing parameters
 
-ANNEALING_TRIES = 5
+OPTIMIZER_TIME_LIMIT_MINUTES = 3  # run annealing attempts until this time budget is exhausted (minimum 1 attempt)
 MULTI_SWAP_FACTOR = 2 # number of times the number of tracks will be attempted to be swapped upon temperature escapes during the anealing iterations
 
 TOTAL_ITERATIONS = 410000
@@ -117,11 +118,11 @@ for k1 in camelot_keys:
                             for k3 in camelot_keys)
         transition_harmonic_costs[k1][k2] = (direct_cost, indirect_cost)
 
-# (Optional) Print the matrix.
-for k1 in camelot_keys:
-    for k2 in camelot_keys:
-        direct, indirect = transition_harmonic_costs[k1][k2]
-        print(f"{k1:4s} -> {k2:4s}: {direct:3.1f},{indirect:3.1f}")
+# (Optional) Print the matrix — commented out to reduce noise.
+# for k1 in camelot_keys:
+#     for k2 in camelot_keys:
+#         direct, indirect = transition_harmonic_costs[k1][k2]
+#         print(f"{k1:4s} -> {k2:4s}: {direct:3.1f},{indirect:3.1f}")
 
 
 def tempo_cost_value(bpm1, bpm2):
@@ -129,54 +130,32 @@ def tempo_cost_value(bpm1, bpm2):
 
 
 ###############################
-# 1. Load Library and Prepare Mix Tracks
+# 1. Load Mix Tracks from "Mixer input" Playlist
 ###############################
 
-df = load_library()
-# (Optional: print library stats here if needed)
-
-# Hard-coded mix tracks (Title, Artist)
-mix_tracks_list = [
-("Hello","Martin Solveig ft. Dragonette"),
-("She Doesn't Mind (Remix)","Sean Paul"),
-("Celebration","Madonna"),
-("Rivers (Sometimes)","Peer Kusiv & Martin Jondo"),
-("Five Hours","Deorro"),
-("Sky High","Elektronomia"),
-("Roses (Imanbek Remix)","SAINt JHN"),
-("Lovefool","twocolors"),
-("Love Again (DawidDJ Remix)","Alok & VIZE ft. Alida"),
-("Love Tonight (David Guetta Remix)","Shouse"),
-("White Lies","VIZE x Tokio Hotel"),
-("Femininomenon (Dance Remix)","Chappell Roan"),
-("I'm Good (Blue)","David Guetta & Bebe Rexha"),
-("Clap Your Hands","Kungs"),
-("Rasputin (2022 Remix)","Majestic x Boney M.")
-]
+print("Loading mix tracks from 'Mixer input' playlist...", flush=True)
+mix_input_df = load_playlist_from_app("Mixer input")
+print(f"  Found {len(mix_input_df)} tracks in playlist", flush=True)
 
 valid_keys = {"1A","1B","2A","2B","3A","3B","4A","4B","5A","5B","6A","6B","7A","7B","8A","8B","9A","9B","10A","10B","11A","11B","12A","12B"}
 mix_tracks_data = []
-for title, artist in mix_tracks_list:
-    norm_title = normalize_text(title)
-    norm_artist = normalize_text(artist)
-    matches = df[(df["Name"].apply(normalize_text) == norm_title) &
-                 (df["Artist"].apply(normalize_text) == norm_artist)]
-    if matches.empty:
-        print(f"WARNING: Could not find track: {title} - {artist}")
-    else:
-        row = matches.iloc[0]
-        key = extract_key_from_comments(row["Comments"])
-        if key is None or key not in valid_keys:
-            print(f"WARNING: No valid key for track: {title} - {artist}")
-            continue
-        mix_tracks_data.append({
-            "title": row["Name"],
-            "artist": row["Artist"],
-            "bpm": row["BPM"],
-            "camelot": key
-        })
+for _, row in mix_input_df.iterrows():
+    key = extract_key_from_comments(row["Comments"])
+    if row["BPM"] == 0:
+        print(f"WARNING: No BPM for track: {row['Name']} - {row['Artist']}")
+        continue
+    if key is None or key not in valid_keys:
+        print(f"WARNING: No valid key for track: {row['Name']} - {row['Artist']}")
+        continue
+    mix_tracks_data.append({
+        "title": row["Name"],
+        "artist": row["Artist"],
+        "bpm": row["BPM"],
+        "camelot": key
+    })
 if len(mix_tracks_data) == 0:
     raise ValueError("No valid mix tracks found.")
+print(f"  {len(mix_tracks_data)} tracks with valid BPM and Camelot key")
 
 # Build immutable base arrays from mix_tracks_data.
 n = len(mix_tracks_data)
@@ -201,9 +180,9 @@ def transition_cost_components(i1, i2, s1, s2):
         key2 = shift_camelot_key(base_keys[i2], s2)
         direct,indirect = transition_harmonic_costs[key1][key2]
         h_cost = direct
-        # if an indirect transition still won't allow to improve, then DOUBLE the harmonic cost
-        if direct== NON_HARMONIC_COST and indirect >= NON_HARMONIC_COST:
-            h_cost += NON_HARMONIC_COST
+        # if an indirect transition still won't allow to improve, TRIPLE the harmonic cost
+        if direct == NON_HARMONIC_COST and indirect >= NON_HARMONIC_COST:
+            h_cost += 2 * NON_HARMONIC_COST
         t_cost = tempo_cost_value(bpms[i1], bpms[i2])
     return h_cost, t_cost
 
@@ -227,9 +206,9 @@ def total_mix_cost_split_order(order, shifts):
             k2 = shift_camelot_key(base_keys[i2], shifts[i2])
             direct,indirect = transition_harmonic_costs[k1][k2]
             h_cost = direct
-            # if an indirect transition still won't allow to improve, then DOUBLE the harmonic cost
+            # if an indirect transition still won't allow to improve, TRIPLE the harmonic cost
             if direct == NON_HARMONIC_COST and indirect >= NON_HARMONIC_COST:
-                h_cost += NON_HARMONIC_COST
+                h_cost += 2 * NON_HARMONIC_COST
             t_cost = tempo_cost_value(bpms[i1], bpms[i2])
         harmonic_total += h_cost
         tempo_total += t_cost
@@ -345,8 +324,8 @@ def simulated_annealing_mix():
 
         # Reporting block: check every reporting_rate iterations.
         if master_iter % REPORTING_RATE == 0:
-            print(f"Iteration {master_iter:6d}: Temp = {temp:.1f}    In Escape Mode: {in_escape_mode}")
-            print(f"Best   : Overall = {best_cost:5.1f} (H={h_best:5.1f}, T={t_best:5.1f}, S={s_best:5.1f})")
+            print(f"Iteration {master_iter:6d}: Temp = {temp:.1f}    In Escape Mode: {in_escape_mode}", flush=True)
+            print(f"Best   : Overall = {best_cost:5.1f} (H={h_best:5.1f}, T={t_best:5.1f}, S={s_best:5.1f})", flush=True)
 
         # Cool the temperature.
         temp *= COOLING_FACTOR
@@ -448,23 +427,27 @@ def report_tempo_break_insertions(final_order, final_shifts, candidate_library, 
 
 
 
-###############################
-# 5. Build Candidate Library (Rating >= 70)
-###############################
-
-candidate_df = df[df["Rating"] >= 70]
-candidate_library = []
-for idx, row in candidate_df.iterrows():
-    key = extract_key_from_comments(row["Comments"])
-    if key is None or key not in camelot_to_pitch:
-        continue
-    candidate_library.append({
-        "title": row["Name"],
-        "artist": row["Artist"],
-        "bpm": row["BPM"],
-        "camelot": key,
-        "Rating": row["Rating"]
-    })
+# ###############################
+# # 5. Build Candidate Library from DJ Playlists (disabled for now)
+# ###############################
+#
+# from common.apple_music import load_dj_playlists_from_app
+# print("\nLoading candidate library from DJ playlists...")
+# candidate_df = load_dj_playlists_from_app()
+# print(f"  Found {len(candidate_df)} tracks in DJ playlists")
+# candidate_library = []
+# for _, row in candidate_df.iterrows():
+#     key = extract_key_from_comments(row["Comments"])
+#     if key is None or key not in camelot_to_pitch:
+#         continue
+#     candidate_library.append({
+#         "title": row["Name"],
+#         "artist": row["Artist"],
+#         "bpm": row["BPM"],
+#         "camelot": key,
+#         "Rating": row["Rating"]
+#     })
+# print(f"  {len(candidate_library)} candidates with valid Camelot keys")
 
 ###############################
 # 6. Run the Optimizer and Report Results
@@ -476,18 +459,24 @@ global_overall_best_order = None
 global_overall_best_shifts = None
 per_track_history = []  # list of lists, one per attempt
 
-for attempt in range(ANNEALING_TRIES):
-    print(f"\n--- Annealing Attempt {attempt+1} of {ANNEALING_TRIES} ---")
-    # Randomize initial order and shifts for this attempt.
-    order = random.sample(range(n), n)  # New random permutation of 0,...,n-1
-    shifts = [random.choice([-1, 0, 1]) for _ in range(n)]  # Random initial shifts for each track
+optimizer_start = time.time()
+time_limit_seconds = OPTIMIZER_TIME_LIMIT_MINUTES * 60
+attempt = 0
 
-    # Run the simulated annealing optimizer (it uses the global order and shifts).
+while True:
+    attempt += 1
+    elapsed = time.time() - optimizer_start
+    remaining = time_limit_seconds - elapsed
+    if attempt > 1 and remaining <= 0:
+        break
+    print(f"\n--- Annealing Attempt {attempt} (elapsed {elapsed:.0f}s / {time_limit_seconds:.0f}s) ---", flush=True)
+
+    # Run the simulated annealing optimizer.
     best_order, best_shifts, best_cost = simulated_annealing_mix()
     # Calculate cost breakdown for this attempt.
     h, t, s = total_mix_cost_split_order(best_order, best_shifts)
     overall = h + TEMPO_COST_WEIGHT * t + s
-    print(f"Attempt {attempt+1} cost breakdown: Harmonic: {h:5.1f}, Tempo: {t:5.1f}, Shift: {s:5.1f}, Overall: {overall:5.1f}")
+    print(f"Attempt {attempt} cost breakdown: Harmonic: {h:5.1f}, Tempo: {t:5.1f}, Shift: {s:5.1f}, Overall: {overall:5.1f}")
 
 
     # --- per-track transition cost analysis for this attempt ---
@@ -526,13 +515,16 @@ for attempt in range(ANNEALING_TRIES):
     # per_track is a list of dicts with "idx" and "avg_total"
     per_track_history.append({ entry["idx"]: entry["avg_total"] for entry in per_track })
 
-    
+
     # Update global best if necessary.
     if overall < global_overall_best_cost:
         global_overall_best_cost = overall
         global_overall_best_order = best_order[:]
         global_overall_best_shifts = best_shifts[:]
     print(f"Global Overall Best Cost so far: {global_overall_best_cost:5.1f}")
+
+total_elapsed = time.time() - optimizer_start
+print(f"\nOptimizer finished: {attempt} attempts in {total_elapsed:.1f}s")
 
 print("\n=== Final Best Overall Results ===")
 print(f"Best Overall Cost: {global_overall_best_cost:5.1f}")
@@ -601,15 +593,31 @@ for pos, idx in enumerate(global_overall_best_order):
         h_cost, t_cost = transition_cost_components(prev_idx, idx, global_overall_best_shifts[prev_idx], s)
         trans_info = f"(H={h_cost:4.1f}  T={t_cost:4.1f})"
     
+    # For high harmonic cost transitions, suggest bridge keys.
+    bridge_hint = ""
+    if pos > 0:
+        prev_idx = global_overall_best_order[pos - 1]
+        prev_eff = shift_camelot_key(mix_tracks_data[prev_idx]['camelot'], global_overall_best_shifts[prev_idx])
+        if h_cost >= 5:
+            suggestions = []
+            for candidate_key in camelot_keys:
+                for cs in [-1, 0, 1]:
+                    candidate_eff = shift_camelot_key(candidate_key, cs)
+                    cost_from_prev = transition_harmonic_costs[prev_eff][candidate_eff][0]
+                    cost_to_next = transition_harmonic_costs[candidate_eff][effective_key][0]
+                    if cost_from_prev <= 0.5 and cost_to_next <= 0.5:
+                        suggestions.append(f"{candidate_key}({cs:+d})")
+            if suggestions:
+                bridge_hint = "  << " + " / ".join(suggestions)
+
     # Combine all fields in a fixed format.
-    # For example: " 1. BPM 115   7A [-1]   -> 12A   (Start)             Uptown Funk - Mark Ronson ft. Bruno Mars"
-    print(f"{pos+1:2d}. {bpm_str:<7s}  {key_str:<10s} -> {eff_key_str:<5s}  {trans_info:<20s}  {track['title']} - {track['artist']}")
+    print(f"{pos+1:2d}. {bpm_str:<7s}  {key_str:<10s} -> {eff_key_str:<5s}  {trans_info:<20s}  {track['title']} - {track['artist']}{bridge_hint}")
 
 
 
 
-###############################
-# 8. Report Candidate Insertions for Tempo Breaks
-###############################
-
-report_tempo_break_insertions(global_overall_best_order, global_overall_best_shifts, candidate_library, TEMPO_THRESHOLD, TEMPO_BREAK_FACTOR)
+# ###############################
+# # 8. Report Candidate Insertions for Tempo Breaks (disabled for now)
+# ###############################
+#
+# report_tempo_break_insertions(global_overall_best_order, global_overall_best_shifts, candidate_library, TEMPO_THRESHOLD, TEMPO_BREAK_FACTOR)
