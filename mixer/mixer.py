@@ -124,9 +124,59 @@ for k1 in camelot_keys:
 #         direct, indirect = transition_harmonic_costs[k1][k2]
 #         print(f"{k1:4s} -> {k2:4s}: {direct:3.1f},{indirect:3.1f}")
 
+###############################
+# Precomputed Integer Tables for Fast SA Loop
+###############################
+
+# Map Camelot key strings to integer IDs (0-23)
+KEY_TO_ID = {k: i for i, k in enumerate(camelot_keys)}
+NUM_KEYS = len(camelot_keys)  # 24
+
+# Shift table: shift_table[key_id * 3 + (shift + 1)] = effective_key_id
+# 72 entries covering all (key, shift) combinations
+_shift_table = [0] * (NUM_KEYS * 3)
+for _kid, _key in enumerate(camelot_keys):
+    for _s in (-1, 0, 1):
+        _eff = shift_camelot_key(_key, _s)
+        _shift_table[_kid * 3 + (_s + 1)] = KEY_TO_ID[_eff]
+
+# Flat cost arrays: direct_cost_flat[ek1 * 24 + ek2] and indirect_cost_flat[ek1 * 24 + ek2]
+_direct_cost_flat = [0.0] * (NUM_KEYS * NUM_KEYS)
+_indirect_cost_flat = [0.0] * (NUM_KEYS * NUM_KEYS)
+for _i, _k1 in enumerate(camelot_keys):
+    for _j, _k2 in enumerate(camelot_keys):
+        _d, _ind = transition_harmonic_costs[_k1][_k2]
+        _direct_cost_flat[_i * NUM_KEYS + _j] = _d
+        _indirect_cost_flat[_i * NUM_KEYS + _j] = _ind
+
+# Precompute tempo break threshold
+_TEMPO_BREAK_THRESHOLD = TEMPO_BREAK_FACTOR * TEMPO_THRESHOLD
+
 
 def tempo_cost_value(bpm1, bpm2):
     return 0 if abs(bpm1 - bpm2) <= TEMPO_THRESHOLD else TEMPO_PENALTY
+
+
+def _fast_edge_cost(i1, i2, s1, s2, bpm_arr, key_id_arr):
+    """Compute transition cost between two tracks using integer arrays.
+
+    Returns combined cost (harmonic + weighted tempo). Used in the SA hot loop.
+    All lookups are flat array indexing — no string ops or dict hashing.
+    """
+    diff = abs(bpm_arr[i1] - bpm_arr[i2])
+    if diff > _TEMPO_BREAK_THRESHOLD:
+        t_cost = TEMPO_PENALTY * TEMPO_BREAK_FACTOR
+        return TEMPO_COST_WEIGHT * t_cost
+    # Effective key IDs via shift table
+    ek1 = _shift_table[key_id_arr[i1] * 3 + (s1 + 1)]
+    ek2 = _shift_table[key_id_arr[i2] * 3 + (s2 + 1)]
+    idx = ek1 * NUM_KEYS + ek2
+    direct = _direct_cost_flat[idx]
+    h_cost = direct
+    if direct == NON_HARMONIC_COST and _indirect_cost_flat[idx] >= NON_HARMONIC_COST:
+        h_cost += 2 * NON_HARMONIC_COST
+    t_cost = TEMPO_PENALTY if diff > TEMPO_THRESHOLD else 0
+    return h_cost + TEMPO_COST_WEIGHT * t_cost
 
 
 ###############################
@@ -161,6 +211,8 @@ print(f"  {len(mix_tracks_data)} tracks with valid BPM and Camelot key")
 n = len(mix_tracks_data)
 base_keys = [track["camelot"] for track in mix_tracks_data]
 bpms = [track["bpm"] for track in mix_tracks_data]
+# Integer key ID array for the fast SA loop
+base_key_ids = [KEY_TO_ID[k] for k in base_keys]
 
 ###############################
 # 2. Helper Functions (Using Base Arrays, Order, and Shifts)
@@ -260,78 +312,173 @@ def optimize_shift_at(order, shifts, pos):
     shifts[i] = best_s
     return best_s
 
+def _edge_positions_for_swap(a, b, n):
+    """Return the set of edge start-positions affected by swapping positions a and b.
+
+    An edge at position j connects order[j] -> order[j+1].
+    Swapping positions a and b affects edges that touch either position.
+    """
+    positions = set()
+    for p in (a, b):
+        if p > 0:
+            positions.add(p - 1)
+        if p < n - 1:
+            positions.add(p)
+    return positions
+
+
+def _compute_total_cost(order, shifts, bpm_arr, key_id_arr):
+    """Compute full cost using fast integer arrays. Returns (total, h, t, s)."""
+    h_total = 0.0
+    t_total = 0.0
+    n = len(order)
+    for j in range(n - 1):
+        i1, i2 = order[j], order[j + 1]
+        diff = abs(bpm_arr[i1] - bpm_arr[i2])
+        if diff > _TEMPO_BREAK_THRESHOLD:
+            t_total += TEMPO_PENALTY * TEMPO_BREAK_FACTOR
+        else:
+            ek1 = _shift_table[key_id_arr[i1] * 3 + (shifts[i1] + 1)]
+            ek2 = _shift_table[key_id_arr[i2] * 3 + (shifts[i2] + 1)]
+            idx = ek1 * NUM_KEYS + ek2
+            direct = _direct_cost_flat[idx]
+            h = direct
+            if direct == NON_HARMONIC_COST and _indirect_cost_flat[idx] >= NON_HARMONIC_COST:
+                h += 2 * NON_HARMONIC_COST
+            h_total += h
+            t_total += TEMPO_PENALTY if diff > TEMPO_THRESHOLD else 0
+    s_total = SHIFT_PENALTY * sum(1 for i in range(n) if shifts[i] != 0)
+    return h_total + TEMPO_COST_WEIGHT * t_total + SHIFT_WEIGHT * s_total, h_total, t_total, s_total
+
+
+def _sum_edge_costs(positions, order, shifts, bpm_arr, key_id_arr):
+    """Sum the edge costs at given positions."""
+    total = 0.0
+    for j in positions:
+        total += _fast_edge_cost(order[j], order[j + 1], shifts[order[j]], shifts[order[j + 1]], bpm_arr, key_id_arr)
+    return total
+
+
+def _optimize_shift_fast(order, shifts, pos, bpm_arr, key_id_arr):
+    """Optimize shift at position pos using fast integer lookups. Modifies shifts in-place."""
+    i = order[pos]
+    n = len(order)
+    best_cost = 0.0
+    if pos > 0:
+        best_cost += _fast_edge_cost(order[pos - 1], i, shifts[order[pos - 1]], shifts[i], bpm_arr, key_id_arr)
+    if pos < n - 1:
+        best_cost += _fast_edge_cost(i, order[pos + 1], shifts[i], shifts[order[pos + 1]], bpm_arr, key_id_arr)
+    best_s = shifts[i]
+    old = shifts[i]
+    for s in (-1, 0, 1):
+        shifts[i] = s
+        cost = 0.0
+        if pos > 0:
+            cost += _fast_edge_cost(order[pos - 1], i, shifts[order[pos - 1]], s, bpm_arr, key_id_arr)
+        if pos < n - 1:
+            cost += _fast_edge_cost(i, order[pos + 1], s, shifts[order[pos + 1]], bpm_arr, key_id_arr)
+        if cost < best_cost:
+            best_cost = cost
+            best_s = s
+    shifts[i] = best_s
+
+
 def simulated_annealing_mix():
-    
-    n = len(mix_tracks_data)  # Using global n from base arrays.
-    # Initialize current state: randomized order and shifts
 
-    best_order = random.sample(range(n), n)  # Random permutation of 0..n-1.
-    best_shifts = [random.choice([-1, 0, 1]) for _ in range(n)]  # Random shift for each track.
+    n = len(mix_tracks_data)
+    bpm_arr = bpms      # module-level list
+    key_id_arr = base_key_ids  # module-level list
 
-    h_best, t_best, s_best = total_mix_cost_split_order(best_order, best_shifts)
-    best_cost = h_best + TEMPO_COST_WEIGHT * t_best + SHIFT_WEIGHT * s_best
+    # Initialize: random order and shifts
+    order = random.sample(range(n), n)
+    shifts = [random.choice([-1, 0, 1]) for _ in range(n)]
+
+    # Compute initial full cost
+    best_cost, h_best, t_best, s_best = _compute_total_cost(order, shifts, bpm_arr, key_id_arr)
+
+    # Keep best state
+    best_order = order[:]
+    best_shifts = shifts[:]
 
     temp = INITIAL_TEMP
     master_iter = 0
-    
-    # Pre-compute the number of candidates to attempt during escape mode.
+
     num_candidates = MULTI_SWAP_FACTOR * n
-    # start the main loop NOT in escape mode
     in_escape_mode = False
     escape_counter = 0
 
-    
-    # MAIN OPTIMIZATION LOOP
+    # Current running cost tracks the state in order/shifts
+    current_cost = best_cost
 
-    while master_iter < TOTAL_ITERATIONS: # we use the global parameters so that we don't have to pass them in the function call
+    # MAIN OPTIMIZATION LOOP (delta cost approach)
+
+    while master_iter < TOTAL_ITERATIONS:
         if not in_escape_mode:
-                candidate_shifts = best_shifts[:]
-                candidate_order = best_order[:]
-        # Generate a candidate swap.
+            # Reset to best known state
+            order[:] = best_order
+            shifts[:] = best_shifts
+            current_cost = best_cost
+
+        # Pick two random positions and swap
         a, b = random.sample(range(n), 2)
-        # perform the swap on the candidate order to get a new candidate
-        candidate_order[a], candidate_order[b] = candidate_order[b], candidate_order[a]
 
-        # Optimize shifts at positions a and b
-        # Because these 2 shifts are being updated to the best values, this means swaping the shitfs together with the candidate order was NOT needed
-        optimize_shift_at(candidate_order, candidate_shifts, a)
-        optimize_shift_at(candidate_order, candidate_shifts, b)
+        # Compute cost of affected edges BEFORE the swap
+        affected = _edge_positions_for_swap(a, b, n)
+        old_edge_cost = _sum_edge_costs(affected, order, shifts, bpm_arr, key_id_arr)
 
-        # Calculate costs for candidate
-        h_cand, t_cand, s_cand = total_mix_cost_split_order(candidate_order, candidate_shifts)
-        candidate_cost = h_cand + TEMPO_COST_WEIGHT * t_cand + SHIFT_WEIGHT * s_cand
-        # if we are in escape mode, we increment the escape counter and exit escape mode
+        # Track old shift penalty contribution for the two swapped tracks
+        old_shift_a = shifts[order[a]]
+        old_shift_b = shifts[order[b]]
+        old_shift_count = (1 if old_shift_a != 0 else 0) + (1 if old_shift_b != 0 else 0)
 
-        # Whether in Escape mode or not, if the candidate cost is an improvement, we update the best order and best shifts.
+        # Perform the swap
+        order[a], order[b] = order[b], order[a]
+
+        # Optimize shifts at the swapped positions
+        _optimize_shift_fast(order, shifts, a, bpm_arr, key_id_arr)
+        _optimize_shift_fast(order, shifts, b, bpm_arr, key_id_arr)
+
+        # Compute cost of affected edges AFTER the swap + shift optimization
+        new_edge_cost = _sum_edge_costs(affected, order, shifts, bpm_arr, key_id_arr)
+
+        # Shift penalty delta
+        new_shift_a = shifts[order[a]]
+        new_shift_b = shifts[order[b]]
+        new_shift_count = (1 if new_shift_a != 0 else 0) + (1 if new_shift_b != 0 else 0)
+        shift_delta = SHIFT_PENALTY * SHIFT_WEIGHT * (new_shift_count - old_shift_count)
+
+        # Delta cost
+        candidate_cost = current_cost + (new_edge_cost - old_edge_cost) + shift_delta
+
         if candidate_cost < best_cost:
-            best_order = candidate_order[:]
-            best_shifts = candidate_shifts[:]
-            h_best, t_best, s_best = h_cand, t_cand, s_cand
+            best_order[:] = order
+            best_shifts[:] = shifts
             best_cost = candidate_cost
-            in_escape_mode = False # exit escape mode if we were in escape mode
-        # TEMPERATURE ESCAPE
-        else: # Candidate is NOT better than Best
+            current_cost = candidate_cost
+            in_escape_mode = False
+            # Recompute split costs for reporting (only on improvement, rare)
+            _, h_best, t_best, s_best = _compute_total_cost(best_order, best_shifts, bpm_arr, key_id_arr)
+        else:
             if in_escape_mode:
-                # if in escape mode, we just increase the escape_counter, exiting the mode if we have performed num_candidates
+                # Keep exploring — update current_cost for the escape chain
+                current_cost = candidate_cost
                 escape_counter += 1
-                if escape_counter > num_candidates: # Exhausted allowed extra swap attempts: exit escape mode.
+                if escape_counter > num_candidates:
                     in_escape_mode = False
                     escape_counter = 0
-            else: # Not in escape mode AND Candidate is NOT better
-                if math.exp((best_cost - candidate_cost) / temp) > random.random(): # We get into escape mode if Temp condition is met
+            else:
+                if math.exp((best_cost - candidate_cost) / temp) > random.random():
                     in_escape_mode = True
                     escape_counter = 0
+                    current_cost = candidate_cost
 
-        # Reporting block: check every reporting_rate iterations.
         if master_iter % REPORTING_RATE == 0:
             print(f"Iteration {master_iter:6d}: Temp = {temp:.1f}    In Escape Mode: {in_escape_mode}", flush=True)
             print(f"Best   : Overall = {best_cost:5.1f} (H={h_best:5.1f}, T={t_best:5.1f}, S={s_best:5.1f})", flush=True)
 
-        # Cool the temperature.
         temp *= COOLING_FACTOR
-        # Increment the main loop counter
         master_iter += 1
-    
+
     return best_order, best_shifts, best_cost
 
 
