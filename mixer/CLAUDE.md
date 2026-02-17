@@ -19,12 +19,13 @@ This subfolder focuses on **playlist optimization** using harmonic mixing and BP
 ## Architecture
 
 ### Optimization Approach
-1. Load track metadata from Apple Music XML export
+1. Load track metadata from "Mixer input" Apple Music playlist via AppleScript
 2. Extract BPM and Camelot key (stored in Comments field)
 3. Try random track orderings with key shifts (-1, 0, +1 semitones)
 4. Score each ordering: harmonic cost + tempo cost + shift penalty
 5. Accept better solutions; occasionally accept worse (simulated annealing)
-6. Report best ordering after multiple attempts
+6. Run attempts until time budget exhausted (default 3 minutes)
+7. Report best ordering with bridge key suggestions for high-cost transitions
 
 ### Cost Function
 - Harmonic: Based on Camelot wheel compatibility (0 = perfect, 5 = dissonant)
@@ -36,30 +37,27 @@ This subfolder focuses on **playlist optimization** using harmonic mixing and BP
 - Two modes per position: A (minor), B (major)
 - Compatible transitions: same number, ±1 number, A↔B at same number
 
-## Current Limitations
+## Current State
 
-1. **Hardcoded playlist** - Track list is manually edited in `mixer.py` (lines 136-152)
-2. **Performance** - Python implementation is slow; considers Rust port for future
-3. **No Apple Music integration** - Can't read/write playlists directly
-4. **Library path** - Expects `~/YDJ Library.xml` (hardcoded in `common/apple_music.py`)
+- ✅ Reads from "Mixer input" Apple Music playlist (no hardcoded track list)
+- ✅ Time-budgeted optimizer (3 min default, ~50 attempts for 17 tracks)
+- ✅ Delta cost SA optimization (O(1) per iteration with integer key lookups)
+- ✅ Bridge key suggestions for high-cost transitions
+- 🚧 DOE for tuning annealing parameters (`DOE-ANNEALING-PARAMS.md`)
+- 🚧 Candidate library from DJ playlists (code ready, disabled)
+- Future: Rust SA engine for 50-100x speedup (`OPTIMIZER-PLAN.md`)
 
 ## Execution Constraints
 
 - **Do NOT modify camelot.py** unless fixing bugs - well-tested harmonic logic
-- **Performance optimization** - Acceptable to enhance mixer.py algorithm, but major speed gains require Rust (Phase 5)
+- **Performance optimization** - Python SA loop already optimized with delta cost + integer arrays; major further gains require Rust (Phase 5)
 - **Track list format** - If helping add tracks, maintain tuple format: `("Title", "Artist")`
 - **Key extraction** - Keys must be in Comments field of Apple Music tracks (e.g., "5A" for A-minor at position 5)
 
 ## Common Tasks
 
 ### Adding tracks to mix
-Edit `mix_tracks_list` array in `mixer.py` (lines 136-152):
-```python
-mix_tracks_list = [
-    ("Song Title", "Artist Name"),
-    ...
-]
-```
+Add tracks to the "Mixer input" playlist in Apple Music. The mixer reads from this playlist directly via AppleScript.
 
 ### Adjusting optimization parameters
 Edit global parameters at top of `mixer.py` (lines 18-42)

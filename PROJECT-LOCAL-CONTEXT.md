@@ -4,31 +4,37 @@
 Comprehensive DJ music production and library management system for YDJ, encompassing playlist optimization (harmonic mixing), Apple Music library metadata management, and YouTube media processing.
 
 ## Current Priority
-**Phase 2: Library Management Enhancement** (genre/year tagging workflow complete, cleanup improvements next)
+**Phase 3: Mixer Improvements** (Apple Music integration done, SA optimization done, DOE and Rust engine next)
 
 ## Completed Phases
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
 
-## Recent Session (2026-02-16)
-- ✅ Added locked fields: consistent metadata (year/genre) is preserved as-is, only inconsistent fields are resolved
-- ✅ Added targeted web search (Source C) for year-only inconsistency groups to find correct original release year
-- ✅ Resolver displays locked fields with "(locked)" indicator and skips updating them
-- **Next**: Continue resolving inconsistency groups, then BPM/key auditing
+## Recent Session (2026-02-17)
+- ✅ Mixer reads from "Mixer input" Apple Music playlist via AppleScript (no hardcoded track list or XML)
+- ✅ Added BPM, Comments, Rating fields to `load_playlist_from_app()`
+- ✅ Added `load_dj_playlists_from_app()` for candidate library (disabled for now)
+- ✅ Time-budgeted optimizer: runs attempts until time limit (3 min default) instead of fixed count
+- ✅ Bridge key suggestions for high-cost transitions (shows what keys to look for)
+- ✅ 3x penalty for unreachable harmonic transitions
+- ✅ SA performance optimization: delta cost (O(1) vs O(n)), integer key IDs, flat cost arrays → 2.8x speedup (50 attempts vs 19 in 3 min)
+- ✅ Created OPTIMIZER-PLAN.md (Python + Rust optimization roadmap)
+- ✅ Created DOE-ANNEALING-PARAMS.md (experiment plan for tuning SA parameters)
+- **Next**: Run DOE to tune annealing params, then implement Rust SA engine (Phase 5)
+
+## Previous Session (2026-02-16)
+- ✅ Added locked fields: consistent metadata preserved, only inconsistent fields resolved
+- ✅ Added targeted web search (Source C) for year-only inconsistency groups
+- ✅ Resolver displays locked fields with "(locked)" indicator
 
 ## Previous Session (2026-02-15)
 - ✅ Fixed AppleScript track update reliability with artist+name search fallback
-- ✅ Enhanced `update_track_metadata()` to search by artist+name instead of database ID
 - ✅ Eliminated dependency on fresh XML exports for track updates
-- ✅ Updated `run-resolver.sh` and `run-tagger.sh` to auto-activate venv
-- ✅ Tested and validated `/resolve-inconsistencies` workflow (229 groups ready to resolve)
 
 ## Previous Session (2026-02-14)
 - ✅ Built interactive inconsistency resolver (detect → research → fix/ignore per group)
-- ✅ Added `add_tracks_to_playlist()` AppleScript capability to `common/apple_music.py`
+- ✅ Added `add_tracks_to_playlist()` AppleScript capability
 - ✅ Created `/resolve-inconsistencies` slash command (229 groups detected in 8,549 DJ tracks)
-- ✅ Source A computed from group majority (no extra library search needed)
-- ✅ "Ignore year or genre inconsistencies" playlist auto-created and used for filtering
 
 ## Constraints and Conventions
 
@@ -117,7 +123,10 @@ ydj-music-studio/
 - `library-management/sources/musicbrainz.py` - Source D: MusicBrainz API queries
 - `run-tagger.sh` - Wrapper to run tag_tracks.py from project root
 - `run-resolver.sh` - Wrapper to run resolve_tagger.py from project root
-- `common/apple_music.py` - XML reader + AppleScript playlist management
+- `mixer/mixer.py` - SA optimizer: reads "Mixer input" playlist, time-budgeted annealing, bridge key hints
+- `mixer/OPTIMIZER-PLAN.md` - Python + Rust optimization roadmap
+- `mixer/DOE-ANNEALING-PARAMS.md` - Experiment plan for tuning SA parameters
+- `common/apple_music.py` - XML reader + AppleScript playlist management (BPM/Comments/Rating fields)
 - `common/genres.json` - Canonical 31-genre taxonomy
 
 ## Run Commands / Environment
@@ -159,9 +168,10 @@ cd ~/Projects/ydj-music-studio/downloads
 
 ### Mixer Usage (Current)
 ```bash
-cd ~/Projects/ydj-music-studio/mixer
-python3 mixer.py
-# Note: Currently uses hardcoded track list; will be enhanced in Phase 3
+cd ~/Projects/ydj-music-studio
+source venv/bin/activate
+python3 mixer/mixer.py
+# Reads from "Mixer input" Apple Music playlist, optimizes for 3 minutes
 ```
 
 ## Integrations / Assets

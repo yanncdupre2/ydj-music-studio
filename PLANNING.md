@@ -102,19 +102,24 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Interactive cleanup workflow for resolving discrepancies (Fix/Ignore/Skip per group)
 - ✅ Reliable track updates regardless of XML export freshness
 
-### Phase 3: Mixer Improvements
+### Phase 3: Mixer Improvements (In Progress)
 **Goal:** Make playlist optimization more seamless and practical
 
-- Dynamic playlist management (read from Apple Music playlists, not hardcoded arrays)
+- ✅ Dynamic playlist input: reads from "Mixer input" Apple Music playlist via AppleScript (no more hardcoded track list or XML)
+- ✅ Added BPM, Comments, Rating fields to AppleScript playlist reader
+- ✅ Time-budgeted optimizer: runs annealing attempts until time limit (default 3 min) instead of fixed attempt count
+- ✅ Bridge key suggestions: for high-cost transitions, shows what keys an inserted track should have
+- ✅ 3x penalty for unreachable harmonic transitions (was 2x) to minimize H=15 transitions
+- ✅ Python-level SA optimization: delta cost evaluation (O(1) vs O(n) per iteration) + integer key lookups + flat cost arrays → 2.8x speedup
+- 🚧 DOE for annealing parameters (initial temp, cooling factor) to optimize iterations per attempt
 - Better visualization of optimization results (transition costs, flow chart)
 - Export optimized playlist back to Apple Music
-- Performance profiling and Python-level optimization
-- Command-line interface with progress reporting
+- Candidate library from DJ playlists (code ready, disabled pending DOE completion)
 
 **Success Criteria:**
-- Optimize playlist directly from Apple Music playlist name
+- ✅ Optimize playlist directly from Apple Music playlist name
+- ✅ Improve performance by 2-3x through algorithmic optimization (achieved 2.8x)
 - Export results back to Apple Music as new playlist
-- Improve performance by 2-3x through algorithmic optimization
 
 ### Phase 4: Safe Apple Music Write Testing (Complete)
 **Goal:** Enable direct library modification without risk
@@ -129,18 +134,19 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Validation ensures no data corruption
 - Backup/restore workflow documented and tested
 
-### Phase 5: Rust Performance Engine (Future)
-**Goal:** 10-100x performance improvement for large playlists
+### Phase 5: Rust Performance Engine (Planned)
+**Goal:** 50-100x performance improvement for large playlists
 
-- Port mixer optimization core to Rust
-- Maintain Python wrapper for ease of use and integration
-- Target: 30-song optimization in seconds (vs. current tens of minutes)
-- Benchmark and validate against Python implementation
+- Port SA optimization loop to Rust via PyO3/maturin
+- Python handles I/O (Apple Music, printing), Rust handles compute
+- Precomputed integer tables passed from Python; Rust is a pure optimization engine
+- Detailed plan in `mixer/OPTIMIZER-PLAN.md`
 
 **Success Criteria:**
-- Rust engine produces identical results to Python version
-- 10x+ performance improvement on typical 20-30 song playlists
-- Seamless integration with existing Python tooling
+- Rust engine produces equivalent results to Python version
+- 50x+ performance improvement (500+ attempts in 3 minutes vs current 50)
+- Fallback to Python SA loop when Rust module not installed
+- Seamless integration: `maturin develop --release` to build, same `mixer.py` entry point
 
 ## Key Decisions and Rationale
 
@@ -272,9 +278,9 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - Production library updates validated against XML export
 
 ### Phase 5 (Rust Engine)
-- 10x+ performance improvement (30 songs in <3 minutes)
-- Bit-identical optimization results vs. Python
-- Seamless Python wrapper integration
+- 50x+ performance improvement (500+ attempts in 3 minutes)
+- Equivalent optimization results vs. Python
+- Seamless Python wrapper integration via PyO3/maturin
 
 ## Open Questions
 
