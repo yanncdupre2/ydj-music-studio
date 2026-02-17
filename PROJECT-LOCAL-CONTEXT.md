@@ -10,13 +10,18 @@ Comprehensive DJ music production and library management system for YDJ, encompa
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
 
-## Recent Session (2026-02-15)
+## Recent Session (2026-02-16)
+- ✅ Added locked fields: consistent metadata (year/genre) is preserved as-is, only inconsistent fields are resolved
+- ✅ Added targeted web search (Source C) for year-only inconsistency groups to find correct original release year
+- ✅ Resolver displays locked fields with "(locked)" indicator and skips updating them
+- **Next**: Continue resolving inconsistency groups, then BPM/key auditing
+
+## Previous Session (2026-02-15)
 - ✅ Fixed AppleScript track update reliability with artist+name search fallback
 - ✅ Enhanced `update_track_metadata()` to search by artist+name instead of database ID
 - ✅ Eliminated dependency on fresh XML exports for track updates
 - ✅ Updated `run-resolver.sh` and `run-tagger.sh` to auto-activate venv
 - ✅ Tested and validated `/resolve-inconsistencies` workflow (229 groups ready to resolve)
-- **Next**: Continue resolving inconsistency groups, then BPM/key auditing
 
 ## Previous Session (2026-02-14)
 - ✅ Built interactive inconsistency resolver (detect → research → fix/ignore per group)

@@ -91,6 +91,8 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Add-to-playlist AppleScript capability (`add_tracks_to_playlist()` in `common/apple_music.py`)
 - ✅ `/resolve-inconsistencies` slash command (229 groups detected across 8,549 DJ tracks)
 - ✅ AppleScript artist+name search (eliminates stale XML database ID dependency)
+- ✅ Locked fields: consistent metadata preserved, only inconsistent fields resolved
+- ✅ Targeted web search (Source C) for year-only inconsistencies to avoid MusicBrainz reissue years
 - 🚧 Audit library metadata quality (missing BPMs, keys)
 - BPM detection and tagging for tracks missing tempo data
 

@@ -16,32 +16,34 @@ To analyze a specific playlist instead:
 cd /Users/fydupre/Projects/ydj-music-studio/library-management && python3 resolve_inconsistencies.py --playlist "Playlist Name" --output /tmp/inconsistency_groups.json
 ```
 
-### Step 2: Fill in Source B (LLM knowledge only — no web searches)
+### Step 2: Fill in Source B + targeted Source C
 Read `/tmp/inconsistency_groups.json`. For each group where source_b is empty:
 - **Source B (LLM knowledge):** Use your own knowledge to fill in `source_b.year` and `source_b.genre` (use a genre string like "pop", "rock", "french pop", "edm", etc.)
-- **Source C: SKIP** — do NOT use web searches (they consume session limits too fast). Leave source_c empty.
+- **Source C (web search — year-only groups):** If `inconsistent_fields` is `["year"]` only (genre is consistent), perform a web search to find the correct **original release year** for the track. Fill in `source_c.year` with the result. This helps avoid MusicBrainz reissue years.
+- **Source C: SKIP** for all other groups (genre-only or both) — leave source_c empty.
 
-After filling in Source B, recompute the `consensus` field for each group using `determine_consensus()` logic:
+After filling in Sources B+C, recompute the `consensus` field for each group using `determine_consensus()` logic:
 - Year: most common year across sources (prefer original release year, not reissues)
 - Genre: map all source genres through `map_genre_to_ydj()`, pick the most common as primary, second-most as alternate
 - Confidence: high (3+ agree), medium (2 agree), low (1 or none)
+
+**Locked fields:** After computing consensus, override it with `locked_fields` from the group:
+- If `locked_fields.year` exists → set `consensus.year` to the locked value
+- If `locked_fields.genre` exists → set `consensus.genre_primary` to the locked value and clear `genre_alternate`
 
 Write the updated JSON back to `/tmp/inconsistency_groups.json`.
 
 ### Step 3: Interactive resolution (requires real terminal)
 The resolver needs interactive keypress input, so open it in a **new Terminal window**:
 ```bash
-osascript -e 'tell application "Terminal"
-    activate
-    do script "cd /Users/fydupre/Projects/ydj-music-studio && ./run-resolver.sh"
-end tell'
+osascript -e 'tell application "Terminal" to activate' -e 'tell application "Terminal" to do script "cd /Users/fydupre/Projects/ydj-music-studio && ./run-resolver.sh"'
 ```
 Tell the user: a Terminal window has opened. For each inconsistency group, press:
 - **1** = Fix all tracks with primary genre + consensus year
 - **2** = Fix all tracks with alternate genre + consensus year
 - **I** = Ignore (add tracks to "Ignore year or genre inconsistencies" playlist)
 - **S** = Skip
-- **Q** = Quit
+- **Q** = Quit (progress is saved; re-running resumes where you left off)
 
 ## Important notes
 - **NO XML EXPORT NEEDED** — all track data is read directly from Apple Music via AppleScript

@@ -43,12 +43,18 @@ def getch():
 def display_group(group, index, total):
     """Display an inconsistency group with its tracks and consensus."""
     consensus = group.get('consensus', {})
+    locked_fields = group.get('locked_fields', {})
     year = consensus.get('year')
     primary = consensus.get('genre_primary')
     alternate = consensus.get('genre_alternate')
     confidence = consensus.get('confidence', '?')
 
     year_str = str(year) if year else '????'
+    if 'year' in locked_fields:
+        year_str += ' (locked)'
+    genre_str = primary or '(none)'
+    if 'genre' in locked_fields:
+        genre_str += ' (locked)'
 
     print(f"\n{'='*70}")
     print(f"[{index}/{total}]  {group['grouping_artist']} - {group['normalized_title']}")
@@ -67,12 +73,20 @@ def display_group(group, index, total):
     print(f"{'-'*70}")
     fields = ', '.join(group.get('inconsistent_fields', []))
     print(f"  Inconsistency: {fields}")
-    print(f"  Consensus ({confidence.upper()}): Year={year_str}, Genre={primary or '(none)'}")
+    print(f"  Consensus ({confidence.upper()}): Year={year_str}, Genre={genre_str}")
     print(f"{'-'*70}")
 
 
 def apply_fix(group, year, genre, dry_run=False):
-    """Apply consistent year and genre to ALL tracks in the group."""
+    """Apply consistent year and genre to ALL tracks in the group.
+
+    Locked fields (consistent across all tracks) are skipped — only
+    inconsistent fields are updated.
+    """
+    locked_fields = group.get('locked_fields', {})
+    effective_year = None if 'year' in locked_fields else year
+    effective_genre = None if 'genre' in locked_fields else genre
+
     success = 0
     errors = 0
     for t in group['tracks']:
@@ -88,11 +102,11 @@ def apply_fix(group, year, genre, dry_run=False):
             continue
 
         if dry_run:
-            print(f"  (dry run) Would set track {t['track_id']}: year={year}, genre={genre}")
+            print(f"  (dry run) Would set track {t['track_id']}: year={effective_year}, genre={effective_genre}")
             success += 1
         else:
             ok = update_track_metadata(
-                t['track_id'], year, genre,
+                t['track_id'], effective_year, effective_genre,
                 artist=t.get('artist'),
                 name=t.get('name')
             )
@@ -113,6 +127,12 @@ def apply_ignore(group, dry_run=False):
     return add_tracks_to_playlist(track_ids, IGNORE_PLAYLIST)
 
 
+def save_progress(filepath, groups):
+    """Write the groups JSON back to disk with updated status fields."""
+    with open(filepath, 'w') as f:
+        json.dump(groups, f, indent=2, ensure_ascii=False)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Interactive inconsistency resolver')
     parser.add_argument('--input', required=True, help='Inconsistency groups JSON file')
@@ -123,18 +143,43 @@ def main():
         groups = json.load(f)
 
     total = len(groups)
+
+    # Count already-resolved groups from previous session
+    prev_fixed = sum(1 for g in groups if g.get('status') == 'fixed')
+    prev_ignored = sum(1 for g in groups if g.get('status') == 'ignored')
+
+    # Find first unresolved group (skip fixed/ignored from previous runs)
+    start_index = 0
+    for idx, g in enumerate(groups):
+        if g.get('status') not in ('fixed', 'ignored'):
+            start_index = idx
+            break
+    else:
+        # All groups are resolved
+        print(f"{'='*70}")
+        print(f"All {total} groups already resolved ({prev_fixed} fixed, {prev_ignored} ignored).")
+        print(f"{'='*70}")
+        return
+
     fixed = 0
     ignored = 0
     skipped = 0
     errors = 0
 
+    pending = total - prev_fixed - prev_ignored
     print(f"{'='*70}")
-    print(f"INCONSISTENCY RESOLVER — {total} groups")
+    print(f"INCONSISTENCY RESOLVER — {total} groups ({pending} remaining)")
+    if prev_fixed or prev_ignored:
+        print(f"  Previous session: {prev_fixed} fixed, {prev_ignored} ignored")
     if args.dry_run:
         print("(DRY RUN — no changes will be written)")
     print(f"{'='*70}")
 
     for i, group in enumerate(groups, 1):
+        # Skip already-resolved groups
+        if group.get('status') in ('fixed', 'ignored'):
+            continue
+
         consensus = group.get('consensus', {})
         year = consensus.get('year')
         primary = consensus.get('genre_primary')
@@ -164,13 +209,16 @@ def main():
             elif ch == 'S':
                 break
             elif ch == 'Q':
-                print("Q — quit")
+                print("Q — quit (progress saved)")
+                save_progress(args.input, groups)
                 print(f"\n{'='*70}")
-                print(f"Partial: {fixed} fixed, {ignored} ignored, {skipped} skipped, {errors} errors")
+                print(f"This session: {fixed} fixed, {ignored} ignored, {skipped} skipped, {errors} errors")
+                print(f"Overall: {prev_fixed + fixed} fixed, {prev_ignored + ignored} ignored")
                 print(f"{'='*70}")
                 sys.exit(0)
             elif ch == '\x03':  # Ctrl-C
-                print("\nAborted.")
+                save_progress(args.input, groups)
+                print("\nAborted (progress saved).")
                 sys.exit(1)
 
         if ch == 'S':
@@ -179,19 +227,28 @@ def main():
         elif ch == 'I':
             print("I — adding to ignore playlist")
             s, e = apply_ignore(group, dry_run=args.dry_run)
+            group['status'] = 'ignored'
             ignored += 1
             errors += e
         elif ch in ('1', '2'):
             genre = primary if ch == '1' else alternate
             print(f"{ch} — fixing all tracks: year={year}, genre={genre}")
             s, e = apply_fix(group, year, genre, dry_run=args.dry_run)
+            group['status'] = 'fixed'
+            group['applied_genre'] = genre
+            group['applied_year'] = year
             fixed += 1
             errors += e
 
+        # Save progress after each action (except skip)
+        if ch != 'S':
+            save_progress(args.input, groups)
+
     # Summary
     print(f"\n{'='*70}")
-    print(f"Done: {fixed} fixed, {ignored} ignored, {skipped} skipped, {errors} errors")
+    print(f"Done: {prev_fixed + fixed} fixed, {prev_ignored + ignored} ignored, {skipped} skipped, {errors} errors")
     print(f"{'='*70}")
+    save_progress(args.input, groups)
 
 
 if __name__ == '__main__':

@@ -123,6 +123,15 @@ def research_group(group):
     # Source A: majority from group's own tracks
     source_a = compute_source_a(group)
 
+    # Compute locked_fields: fields that are consistent should be preserved
+    inconsistent = group.get('inconsistent_fields', [])
+    locked_fields = {}
+    if 'year' not in inconsistent and source_a['year'] is not None:
+        locked_fields['year'] = source_a['year']
+    if 'genre' not in inconsistent and source_a['genre'] is not None:
+        locked_fields['genre'] = source_a['genre']
+    group['locked_fields'] = locked_fields
+
     # Source D: MusicBrainz
     source_d = {'year': None, 'genres': []}
     try:
@@ -147,6 +156,13 @@ def research_group(group):
         'source_d': source_d,
     }
     consensus = determine_consensus(sources)
+
+    # Override consensus with locked (consistent) fields
+    if 'year' in locked_fields:
+        consensus['year'] = locked_fields['year']
+    if 'genre' in locked_fields:
+        consensus['genre_primary'] = locked_fields['genre']
+        consensus['genre_alternate'] = None
 
     group['source_a'] = source_a
     group['source_b'] = source_b
