@@ -4,11 +4,22 @@
 Comprehensive DJ music production and library management system for YDJ, encompassing playlist optimization (harmonic mixing), Apple Music library metadata management, and YouTube media processing.
 
 ## Current Priority
-**Phase 3: Mixer Improvements** (SA optimization done, DOE complete, Rust engine next)
+**Phase 5: Rust SA Engine** (complete — 60x speedup measured; Phase 3 mixer improvements otherwise done)
 
 ## Completed Phases
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
+
+## Recent Session (2026-02-17, night)
+- ✅ **Phase 5: Rust SA engine implemented** (`src/ydj_mixer_engine/`)
+- ✅ Rust 1.93.1 + maturin 1.12.2 installed; crate built with PyO3 + rand
+- ✅ `optimize_mix()` in Rust: full timed outer loop, delta cost, escape mode, shift optimization
+- ✅ Python fallback: `USE_RUST = False` if `ydj_mixer_engine` not importable
+- ✅ **Measured speedup: 60x** (Python 0.2 att/s → Rust 12.0 att/s, 17 tracks)
+- ✅ Rust finds better solutions (40.5 vs 44.5 best cost in 10s) due to 40x more attempts
+- ✅ `.gitignore` updated (Rust `target/`), `requirements.txt` updated (maturin)
+- ✅ `OPTIMIZER-PLAN.md` updated with Phase B status and measured results
+- **Build command**: `cd src/ydj_mixer_engine && maturin develop --release`
 
 ## Recent Session (2026-02-17, evening)
 - ✅ DOE for SA annealing parameters completed: 9 variations (init temp 300/500/700 × final temp 0.05/0.1/0.15), 879 total attempts
@@ -17,7 +28,6 @@ Comprehensive DJ music production and library management system for YDJ, encompa
 - ✅ Time budget increased from 3 to 5 minutes (~80 attempts for 17 tracks)
 - ✅ DOE results saved to `mixer/doe_temperature_results.csv` (879 rows)
 - ✅ `DOE-ANNEALING-PARAMS.md` updated with full findings
-- **Next**: Rust SA engine (Phase 5) for 50-100x speedup
 
 ## Previous Session (2026-02-17, morning)
 - ✅ Mixer reads from "Mixer input" Apple Music playlist via AppleScript (no hardcoded track list or XML)
@@ -118,7 +128,14 @@ ydj-music-studio/
 │
 ├── venv/                          # Python virtual environment (gitignored)
 ├── docs/                          # Additional documentation
-└── src/                           # Future: compiled Rust binaries
+└── src/
+    └── ydj_mixer_engine/          # Rust SA engine (Phase 5)
+        ├── Cargo.toml             # pyo3 + rand deps
+        ├── pyproject.toml         # maturin build config
+        └── src/
+            ├── lib.rs             # PyO3 module, optimize_mix() entry point
+            ├── annealing.rs       # SA loop: timed outer loop, delta cost, escape mode
+            └── cost.rs            # Edge cost on flat integer arrays, shift optimizer
 ```
 
 ### Key Files

@@ -9,6 +9,14 @@ import pandas as pd
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+try:
+    from ydj_mixer_engine import optimize_mix as _rust_optimize_mix
+    USE_RUST = True
+    print("Rust SA engine loaded (ydj_mixer_engine)")
+except ImportError:
+    USE_RUST = False
+    print("Rust SA engine not available — using Python SA loop")
+
 from common.apple_music import load_playlist_from_app
 from camelot import parse_camelot, shift_camelot_key, extract_key_from_comments, camelot_to_pitch, pitch_to_camelot
 
@@ -600,78 +608,126 @@ def report_tempo_break_insertions(final_order, final_shifts, candidate_library, 
 # 6. Run the Optimizer and Report Results
 ###############################
 
-
-global_overall_best_cost = float('inf')
-global_overall_best_order = None
-global_overall_best_shifts = None
-per_track_history = []  # list of lists, one per attempt
-
 optimizer_start = time.time()
 time_limit_seconds = OPTIMIZER_TIME_LIMIT_MINUTES * 60
-attempt = 0
+per_track_history = []  # list of dicts: track_idx -> avg_total
 
-while True:
-    attempt += 1
-    elapsed = time.time() - optimizer_start
-    remaining = time_limit_seconds - elapsed
-    if attempt > 1 and remaining <= 0:
-        break
-    print(f"\n--- Annealing Attempt {attempt} (elapsed {elapsed:.0f}s / {time_limit_seconds:.0f}s) ---", flush=True)
+if USE_RUST:
+    # ---------------------------------------------------------------
+    # Rust path: pass precomputed tables, run entire time budget in Rust
+    # ---------------------------------------------------------------
+    _cost_params = {
+        "tempo_threshold":    float(TEMPO_THRESHOLD),
+        "tempo_penalty":      float(TEMPO_PENALTY),
+        "tempo_break_factor": float(TEMPO_BREAK_FACTOR),
+        "tempo_cost_weight":  float(TEMPO_COST_WEIGHT),
+        "non_harmonic_cost":  float(NON_HARMONIC_COST),
+        "shift_penalty":      float(SHIFT_PENALTY),
+        "shift_weight":       float(SHIFT_WEIGHT),
+    }
+    _ann_params = {
+        "total_iterations": float(TOTAL_ITERATIONS),
+        "initial_temp":     float(INITIAL_TEMP),
+        "final_temp":       float(FINAL_TEMP),
+        "multi_swap_factor": float(MULTI_SWAP_FACTOR),
+    }
 
-    # Run the simulated annealing optimizer.
-    best_order, best_shifts, best_cost = simulated_annealing_mix()
-    # Calculate cost breakdown for this attempt.
-    h, t, s = total_mix_cost_split_order(best_order, best_shifts)
-    overall = h + TEMPO_COST_WEIGHT * t + s
-    print(f"Attempt {attempt} cost breakdown: Harmonic: {h:5.1f}, Tempo: {t:5.1f}, Shift: {s:5.1f}, Overall: {overall:5.1f}")
+    print(f"\nRunning Rust SA engine for {OPTIMIZER_TIME_LIMIT_MINUTES} min...", flush=True)
+    (
+        global_overall_best_order,
+        _best_shifts_raw,
+        global_overall_best_cost,
+        (h_best_rust, t_best_rust, s_best_rust),
+        _attempt_costs,
+        _n_attempts,
+    ) = _rust_optimize_mix(
+        bpms,
+        base_key_ids,
+        _shift_table,
+        _direct_cost_flat,
+        _indirect_cost_flat,
+        _cost_params,
+        _ann_params,
+        float(time_limit_seconds),
+    )
+    # Rust returns shifts as Vec<i8>; convert to a per-track list (index = track index)
+    global_overall_best_shifts = list(_best_shifts_raw)
 
+    total_elapsed = time.time() - optimizer_start
+    attempt = _n_attempts
+    print(f"\nRust engine finished: {attempt} attempts in {total_elapsed:.1f}s", flush=True)
+    print(f"Best Overall Cost: {global_overall_best_cost:5.1f}  "
+          f"(H={h_best_rust:5.1f}, T={t_best_rust:5.1f}, S={s_best_rust:5.1f})")
 
-    # --- per-track transition cost analysis for this attempt ---
+    # Report per-attempt costs
+    for i, (ov, h, t, s) in enumerate(_attempt_costs, 1):
+        print(f"  Attempt {i:3d}: Overall={ov:5.1f}  H={h:5.1f}  T={t:5.1f}  S={s:5.1f}")
+
+    # Build per-track cost history from the final best order (one pass — Rust doesn't return per-attempt per-track data)
     per_track = []
-    for pos, idx in enumerate(best_order):
-        # accumulate harmonic and tempo cost from previous and next transitions
+    for pos, idx in enumerate(global_overall_best_order):
         h_sum = 0.0
         t_sum = 0.0
         count = 0
         if pos > 0:
-            prev_idx = best_order[pos - 1]
-            h, t = transition_cost_components(prev_idx, idx, best_shifts[prev_idx], best_shifts[idx])
-            h_sum += h
-            t_sum += t
-            count += 1
+            prev_idx = global_overall_best_order[pos - 1]
+            h, t = transition_cost_components(prev_idx, idx, global_overall_best_shifts[prev_idx], global_overall_best_shifts[idx])
+            h_sum += h; t_sum += t; count += 1
         if pos < n - 1:
-            next_idx = best_order[pos + 1]
-            h, t = transition_cost_components(idx, next_idx, best_shifts[idx], best_shifts[next_idx])
-            h_sum += h
-            t_sum += t
-            count += 1
+            next_idx = global_overall_best_order[pos + 1]
+            h, t = transition_cost_components(idx, next_idx, global_overall_best_shifts[idx], global_overall_best_shifts[next_idx])
+            h_sum += h; t_sum += t; count += 1
         avg_h = h_sum / count if count else 0.0
         avg_t = t_sum / count if count else 0.0
-        avg_total = avg_h + TEMPO_COST_WEIGHT * avg_t
-        track_info = mix_tracks_data[idx]
-        per_track.append({
-            "idx": idx,
-            "title": track_info["title"],
-            "artist": track_info["artist"],
-            "avg_h": avg_h,
-            "avg_t": avg_t,
-            "avg_total": avg_total
-        })
+        per_track.append({"idx": idx, "avg_total": avg_h + TEMPO_COST_WEIGHT * avg_t})
+    per_track_history.append({e["idx"]: e["avg_total"] for e in per_track})
 
+else:
+    # ---------------------------------------------------------------
+    # Python fallback path
+    # ---------------------------------------------------------------
+    global_overall_best_cost = float('inf')
+    global_overall_best_order = None
+    global_overall_best_shifts = None
+    attempt = 0
 
-    # per_track is a list of dicts with "idx" and "avg_total"
-    per_track_history.append({ entry["idx"]: entry["avg_total"] for entry in per_track })
+    while True:
+        attempt += 1
+        elapsed = time.time() - optimizer_start
+        remaining = time_limit_seconds - elapsed
+        if attempt > 1 and remaining <= 0:
+            break
+        print(f"\n--- Annealing Attempt {attempt} (elapsed {elapsed:.0f}s / {time_limit_seconds:.0f}s) ---", flush=True)
 
+        best_order, best_shifts, best_cost = simulated_annealing_mix()
+        h, t, s = total_mix_cost_split_order(best_order, best_shifts)
+        overall = h + TEMPO_COST_WEIGHT * t + s
+        print(f"Attempt {attempt} cost breakdown: Harmonic: {h:5.1f}, Tempo: {t:5.1f}, Shift: {s:5.1f}, Overall: {overall:5.1f}")
 
-    # Update global best if necessary.
-    if overall < global_overall_best_cost:
-        global_overall_best_cost = overall
-        global_overall_best_order = best_order[:]
-        global_overall_best_shifts = best_shifts[:]
-    print(f"Global Overall Best Cost so far: {global_overall_best_cost:5.1f}")
+        per_track = []
+        for pos, idx in enumerate(best_order):
+            h_sum = 0.0; t_sum = 0.0; count = 0
+            if pos > 0:
+                prev_idx = best_order[pos - 1]
+                h, t = transition_cost_components(prev_idx, idx, best_shifts[prev_idx], best_shifts[idx])
+                h_sum += h; t_sum += t; count += 1
+            if pos < n - 1:
+                next_idx = best_order[pos + 1]
+                h, t = transition_cost_components(idx, next_idx, best_shifts[idx], best_shifts[next_idx])
+                h_sum += h; t_sum += t; count += 1
+            avg_h = h_sum / count if count else 0.0
+            avg_t = t_sum / count if count else 0.0
+            per_track.append({"idx": idx, "avg_total": avg_h + TEMPO_COST_WEIGHT * avg_t})
+        per_track_history.append({e["idx"]: e["avg_total"] for e in per_track})
 
-total_elapsed = time.time() - optimizer_start
-print(f"\nOptimizer finished: {attempt} attempts in {total_elapsed:.1f}s")
+        if overall < global_overall_best_cost:
+            global_overall_best_cost = overall
+            global_overall_best_order = best_order[:]
+            global_overall_best_shifts = best_shifts[:]
+        print(f"Global Overall Best Cost so far: {global_overall_best_cost:5.1f}")
+
+    total_elapsed = time.time() - optimizer_start
+    print(f"\nOptimizer finished: {attempt} attempts in {total_elapsed:.1f}s")
 
 print("\n=== Final Best Overall Results ===")
 print(f"Best Overall Cost: {global_overall_best_cost:5.1f}")

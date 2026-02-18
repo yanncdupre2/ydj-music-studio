@@ -9,6 +9,10 @@ __pycache__/
 dist/
 build/
 
+# Rust build artifacts
+src/ydj_mixer_engine/target/
+src/ydj_mixer_engine/.cargo-lock
+
 # Data files
 data/exports/
 *.csv

@@ -13,6 +13,11 @@ python-Levenshtein>=0.21.0
 python-dateutil>=2.8.0
 pytz>=2023.3
 
+# Rust extension builder (Phase 5: SA engine)
+# After installing Rust (rustup), run: pip install maturin
+# Then: cd src/ydj_mixer_engine && maturin develop --release
+maturin>=1.0
+
 # Future: Music database APIs
 # musicbrainzngs>=0.7.1
 # spotipy>=2.23.0
