@@ -8,5 +8,7 @@
 
 set -e
 cd "$(dirname "$0")"
+# Make ydj_mixer_engine (Rust) importable — Cargo adds it to PATH at build time
+[ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
 source venv/bin/activate
 python3 mixer/mixer.py "$@"

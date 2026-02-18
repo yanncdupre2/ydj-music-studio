@@ -112,7 +112,8 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ 3x penalty for unreachable harmonic transitions (was 2x) to minimize H=15 transitions
 - ✅ Python-level SA optimization: delta cost evaluation (O(1) vs O(n) per iteration) + integer key lookups + flat cost arrays → 2.8x speedup
 - ✅ DOE for annealing parameters: 9 variations (3 initial temps × 3 final temps), 879 attempts — nominal values (500 → 0.1, 410k iterations) confirmed optimal
-- Better visualization of optimization results (transition costs, flow chart)
+- ✅ Held-Karp exact optimizer: guarantees global optimum for n ≤ 20 tracks (< 1s for n=17)
+- ✅ Improved mix output: bridge hints appear as `>>` rows between tracks (harmonic + tempo); BPM range uses intersection of both neighbors' windows; keys expanded to all ±1 semitone variants
 - Export optimized playlist back to Apple Music
 - Candidate library from DJ playlists (code ready, disabled)
 
@@ -120,6 +121,7 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Optimize playlist directly from Apple Music playlist name
 - ✅ Improve performance by 2-3x through algorithmic optimization (achieved 2.8x)
 - ✅ DOE validated annealing parameters (no further tuning needed)
+- ✅ Exact global optimum for playlists ≤ 20 tracks (Held-Karp)
 - Export results back to Apple Music as new playlist
 
 ### Phase 4: Safe Apple Music Write Testing (Complete)
@@ -150,6 +152,21 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Seamless integration: `maturin develop --release` to build, same `mixer.py` entry point
 
 ## Key Decisions and Rationale
+
+### Decision: Held-Karp Exact Optimizer (Phase C)
+**Context:** Rust SA engine runs 3,561 attempts in 5 min but still cannot guarantee the global optimum. With 17 tracks, SA found best cost 40.5 over thousands of attempts; Held-Karp found 40.5 in 0.43s — guaranteed optimal.
+
+**Decision:** Add Held-Karp DP optimizer in Rust alongside SA. Dispatch: n ≤ 20 → Held-Karp (exact, seconds); n > 20 → SA (probabilistic, time-budgeted).
+
+**Rationale:**
+- Held-Karp is O(n² · 2ⁿ): exponential but tractable for n ≤ 20 (< 1s for n=17, ~4s for n=20)
+- Reuses the same precomputed flat integer tables as SA — zero new data structures from Python side
+- SA fallback is untouched; large playlists (n > 20) continue using the 60x Rust SA engine
+- For typical DJ sets (15–20 tracks), the user now gets the provably best mix instantly
+
+**Results:** n=17 in 0.43s, n=20 in 4.2s; verified against brute-force on 20 random test cases (n=4–6); all match exactly.
+
+**Date:** 2026-02-17
 
 ### Decision: Rust SA Engine via PyO3 (Phase 5)
 **Context:** Python SA loop had been fully optimized (delta cost, integer arrays, swap-undo) but was still limited to ~80 attempts in 5 minutes for a 17-track playlist. DOE confirmed solution quality scales with attempt count, not temperature schedule.

@@ -4,11 +4,30 @@
 Comprehensive DJ music production and library management system for YDJ, encompassing playlist optimization (harmonic mixing), Apple Music library metadata management, and YouTube media processing.
 
 ## Current Priority
-**Phase 5: Rust SA Engine** (complete — 60x speedup measured; Phase 3 mixer improvements otherwise done)
+**Phase C: Held-Karp exact optimizer** (complete — global optimum guaranteed for n ≤ 20 tracks); mixer output improvements also done this session.
 
 ## Completed Phases
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
+
+## Recent Session (2026-02-17, late night)
+- ✅ **Held-Karp exact optimizer implemented** (`src/ydj_mixer_engine/src/held_karp.rs`)
+- ✅ DP on bitmask subsets: state (mask, last_track, shift_idx), O(n²·2ⁿ·9)
+- ✅ Backtracking without parent table (searches DP table; all costs are exact half-integers)
+- ✅ `optimize_mix_exact()` exported via PyO3 in `lib.rs`
+- ✅ `mixer.py` dispatch: n ≤ 20 → HK exact; n > 20 → SA; no Rust → Python SA
+- ✅ `USE_RUST_EXACT` flag; `HELD_KARP_MAX_TRACKS = 20` constant
+- ✅ Verified against brute-force: 20 random tests (n=4–6), all match exactly
+- ✅ **Performance: n=17 in 0.43s, n=20 in 4.2s** (global optimum, no time budget needed)
+- ✅ **Improved mix output**: bridge hints now appear as `>> ` rows between tracks
+  - Both harmonic bridges (h_cost ≥ 5) and tempo bridges (t_cost > 0) shown
+  - BPM range = intersection of both neighbors' ±4 BPM windows (correct bridge target)
+  - Keys expanded to all ±1 semitone variants (12 keys for 4 effective keys, no spaces around /)
+  - Format: `>> [label] - keys: K1/K2(+1)/K3(-1)/... - BPM xxx`
+- ✅ `run-mixer.sh`: added `source "$HOME/.cargo/env"` so Rust engine loads correctly
+- ✅ `HELD-KARP-PLAN.md` status updated to COMPLETE
+- ✅ `OPTIMIZER-PLAN.md` updated with Phase C entry
+- **Build command**: `cd src/ydj_mixer_engine && maturin develop --release`
 
 ## Recent Session (2026-02-17, night)
 - ✅ **Phase 5: Rust SA engine implemented** (`src/ydj_mixer_engine/`)
@@ -151,9 +170,10 @@ ydj-music-studio/
 - `mixer/mixer.py` - SA optimizer: Rust engine (USE_RUST) with Python fallback; reads "Mixer input" playlist
 - `mixer/OPTIMIZER-PLAN.md` - Python + Rust optimization roadmap (Phase B complete)
 - `mixer/DOE-ANNEALING-PARAMS.md` - SA parameter DOE results (nominal values confirmed optimal)
-- `src/ydj_mixer_engine/src/lib.rs` - PyO3 entry point: `optimize_mix()` exported to Python
+- `src/ydj_mixer_engine/src/lib.rs` - PyO3 entry point: `optimize_mix()` and `optimize_mix_exact()` exported to Python
 - `src/ydj_mixer_engine/src/annealing.rs` - Rust SA loop: timed multi-attempt, delta cost, escape mode
 - `src/ydj_mixer_engine/src/cost.rs` - Edge cost, shift optimizer on flat integer arrays
+- `src/ydj_mixer_engine/src/held_karp.rs` - Held-Karp DP exact optimizer (n ≤ 20)
 - `common/apple_music.py` - XML reader + AppleScript playlist management (BPM/Comments/Rating fields)
 - `common/genres.json` - Canonical 31-genre taxonomy
 

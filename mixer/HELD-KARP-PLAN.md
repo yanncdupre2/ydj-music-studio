@@ -1,6 +1,6 @@
 # Held-Karp Exact Optimizer — Implementation Plan
 
-**Status: PLANNED — implementation deferred**
+**Status: COMPLETE — implemented 2026-02-17**
 **Prerequisite: SA engine (`ydj_mixer_engine`) must remain working as fallback**
 
 ---

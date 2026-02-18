@@ -12,9 +12,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 try:
     from ydj_mixer_engine import optimize_mix as _rust_optimize_mix
     USE_RUST = True
+    try:
+        from ydj_mixer_engine import optimize_mix_exact as _rust_optimize_exact
+        USE_RUST_EXACT = True
+    except ImportError:
+        USE_RUST_EXACT = False
     print("Rust SA engine loaded (ydj_mixer_engine)")
+    if USE_RUST_EXACT:
+        print("  Held-Karp exact optimizer available")
 except ImportError:
     USE_RUST = False
+    USE_RUST_EXACT = False
     print("Rust SA engine not available — using Python SA loop")
 
 from common.apple_music import load_playlist_from_app
@@ -51,6 +59,9 @@ TOTAL_ITERATIONS = 410000
 INITIAL_TEMP = 500
 FINAL_TEMP = 0.1
 REPORTING_RATE = 50000
+
+# Held-Karp exact optimizer: use for playlists up to this size (n > threshold → SA)
+HELD_KARP_MAX_TRACKS = 20
 
 
 # Cooling factor is calculated such that the final temperature is reached at TOTAL iterations.
@@ -623,19 +634,69 @@ optimizer_start = time.time()
 time_limit_seconds = OPTIMIZER_TIME_LIMIT_MINUTES * 60
 per_track_history = []  # list of dicts: track_idx -> avg_total
 
-if USE_RUST:
+_cost_params = {
+    "tempo_threshold":    float(TEMPO_THRESHOLD),
+    "tempo_penalty":      float(TEMPO_PENALTY),
+    "tempo_break_factor": float(TEMPO_BREAK_FACTOR),
+    "tempo_cost_weight":  float(TEMPO_COST_WEIGHT),
+    "non_harmonic_cost":  float(NON_HARMONIC_COST),
+    "shift_penalty":      float(SHIFT_PENALTY),
+    "shift_weight":       float(SHIFT_WEIGHT),
+}
+
+if USE_RUST and USE_RUST_EXACT and n <= HELD_KARP_MAX_TRACKS:
     # ---------------------------------------------------------------
-    # Rust path: pass precomputed tables, run entire time budget in Rust
+    # Held-Karp path: exact global optimum, guaranteed (n ≤ 20)
     # ---------------------------------------------------------------
-    _cost_params = {
-        "tempo_threshold":    float(TEMPO_THRESHOLD),
-        "tempo_penalty":      float(TEMPO_PENALTY),
-        "tempo_break_factor": float(TEMPO_BREAK_FACTOR),
-        "tempo_cost_weight":  float(TEMPO_COST_WEIGHT),
-        "non_harmonic_cost":  float(NON_HARMONIC_COST),
-        "shift_penalty":      float(SHIFT_PENALTY),
-        "shift_weight":       float(SHIFT_WEIGHT),
-    }
+    print(f"\nRunning Held-Karp exact optimizer (n={n}, global optimum guaranteed)...", flush=True)
+    (
+        global_overall_best_order,
+        _best_shifts_raw,
+        global_overall_best_cost,
+        (h_best_rust, t_best_rust, s_best_rust),
+    ) = _rust_optimize_exact(
+        bpms,
+        base_key_ids,
+        _shift_table,
+        _direct_cost_flat,
+        _indirect_cost_flat,
+        _cost_params,
+    )
+    global_overall_best_shifts = list(_best_shifts_raw)
+
+    total_elapsed = time.time() - optimizer_start
+    attempt = 1
+    _attempt_costs = [(global_overall_best_cost, h_best_rust, t_best_rust, s_best_rust)]
+    print(f"Held-Karp finished in {total_elapsed:.2f}s — global optimum: {global_overall_best_cost:5.1f}  "
+          f"(H={h_best_rust:5.1f}, T={t_best_rust:5.1f}, S={s_best_rust:5.1f})", flush=True)
+
+    # Per-track costs: compute from the single optimal solution
+    _per_track_min = [0.0] * n
+    _per_track_max = [0.0] * n
+    _per_track_avg = [0.0] * n
+    for _pos, _tidx in enumerate(global_overall_best_order):
+        _h_sum = 0.0; _t_sum = 0.0; _cnt = 0
+        if _pos > 0:
+            _prev = global_overall_best_order[_pos - 1]
+            _h, _t = transition_cost_components(_prev, _tidx,
+                         global_overall_best_shifts[_prev], global_overall_best_shifts[_tidx])
+            _h_sum += _h; _t_sum += _t; _cnt += 1
+        if _pos < n - 1:
+            _nxt = global_overall_best_order[_pos + 1]
+            _h, _t = transition_cost_components(_tidx, _nxt,
+                         global_overall_best_shifts[_tidx], global_overall_best_shifts[_nxt])
+            _h_sum += _h; _t_sum += _t; _cnt += 1
+        _avg_c = (_h_sum + TEMPO_COST_WEIGHT * _t_sum) / _cnt if _cnt else 0.0
+        _per_track_min[_tidx] = _avg_c
+        _per_track_max[_tidx] = _avg_c
+        _per_track_avg[_tidx] = _avg_c
+    _rust_per_track_stats = {i: (_per_track_min[i], _per_track_avg[i], _per_track_max[i])
+                             for i in range(n)}
+
+elif USE_RUST:
+    # ---------------------------------------------------------------
+    # Rust SA path: pass precomputed tables, run entire time budget in Rust
+    # ---------------------------------------------------------------
     _ann_params = {
         "total_iterations": float(TOTAL_ITERATIONS),
         "initial_temp":     float(INITIAL_TEMP),
@@ -678,7 +739,6 @@ if USE_RUST:
         print(f"  Attempt {i:3d}: Overall={ov:5.1f}  H={h:5.1f}  T={t:5.1f}  S={s:5.1f}")
 
     # Encode per-track stats (min/max/avg across all attempts) for the summary table
-    # Use a synthetic per_track_history entry with avg, plus direct access to min/max
     _rust_per_track_stats = {i: (_per_track_min[i], _per_track_avg[i], _per_track_max[i])
                              for i in range(n)}  # track_idx -> (min, avg, max)
 
@@ -776,50 +836,110 @@ for avg, idx, mn, mx, runs in summary:
 ###############################
 
 print("\nFinal Mix Order:")
+_thresh_int = int(TEMPO_THRESHOLD)  # 4 — integer BPM tolerance for display
+
 for pos, idx in enumerate(global_overall_best_order):
     track = mix_tracks_data[idx]
     s = global_overall_best_shifts[idx]
     bpm = track['bpm']
     original_key = track['camelot']
     effective_key = shift_camelot_key(original_key, s)
-    
-    # Format BPM column: "BPM xxx" in a 7-character field.
-    bpm_str = f"BPM {bpm:3d}"
-    
-    # Format original key with shift in a fixed 10-character field.
-    # For example, " 7A [-1]"
-    key_str = f"{original_key:>3s} [{s:+d}]"
-    
-    # Format effective key in a 5-character field.
+
+    bpm_str     = f"BPM {bpm:3d}"
+    key_str     = f"{original_key:>3s} [{s:+d}]"
     eff_key_str = f"{effective_key:>5s}"
-    
-    # For the first track, display "(Start)". Otherwise, compute transition costs.
+
     if pos == 0:
         trans_info = "(Start)"
+        h_cost = 0.0
+        t_cost = 0.0
     else:
         prev_idx = global_overall_best_order[pos - 1]
         h_cost, t_cost = transition_cost_components(prev_idx, idx, global_overall_best_shifts[prev_idx], s)
         trans_info = f"(H={h_cost:4.1f}  T={t_cost:4.1f})"
-    
-    # For high harmonic cost transitions, suggest bridge keys.
-    bridge_hint = ""
-    if pos > 0:
-        prev_idx = global_overall_best_order[pos - 1]
-        prev_eff = shift_camelot_key(mix_tracks_data[prev_idx]['camelot'], global_overall_best_shifts[prev_idx])
-        if h_cost >= 5:
-            suggestions = []
-            for candidate_key in camelot_keys:
-                for cs in [-1, 0, 1]:
-                    candidate_eff = shift_camelot_key(candidate_key, cs)
-                    cost_from_prev = transition_harmonic_costs[prev_eff][candidate_eff][0]
-                    cost_to_next = transition_harmonic_costs[candidate_eff][effective_key][0]
-                    if cost_from_prev <= 0.5 and cost_to_next <= 0.5:
-                        suggestions.append(f"{candidate_key}({cs:+d})")
-            if suggestions:
-                bridge_hint = "  << " + " / ".join(suggestions)
 
-    # Combine all fields in a fixed format.
-    print(f"{pos+1:2d}. {bpm_str:<7s}  {key_str:<10s} -> {eff_key_str:<5s}  {trans_info:<20s}  {track['title']} - {track['artist']}{bridge_hint}")
+    # Bridge insertion hint printed BEFORE this track (visually between prev and this).
+    if pos > 0 and (h_cost >= 5 or t_cost > 0):
+        prev_idx  = global_overall_best_order[pos - 1]
+        prev_bpm  = mix_tracks_data[prev_idx]['bpm']
+        prev_eff  = shift_camelot_key(mix_tracks_data[prev_idx]['camelot'], global_overall_best_shifts[prev_idx])
+
+        def _expand_keys(eff_keys):
+            """Expand a list of effective keys to all (base_key, shift) variants.
+            For each effective key E, yields E (shift 0), then base(+1)->E, then base(-1)->E.
+            No spaces around / to save horizontal space."""
+            entries = []
+            for _eff in eff_keys:
+                for _s in (0, 1, -1):
+                    _base = shift_camelot_key(_eff, -_s)
+                    entries.append(_eff if _s == 0 else f"{_base}({_s:+d})")
+            return "/".join(entries)
+
+        def _bpm_intersection(lo1, hi1, lo2, hi2):
+            """Intersection of two BPM windows; fallback to first window if disjoint."""
+            _lo = max(lo1, lo2)
+            _hi = min(hi1, hi2)
+            if _lo > _hi:
+                return lo1, hi1, False   # disjoint — caller uses fallback
+            return _lo, _hi, True
+
+        if h_cost >= 5:
+            # Collect effective keys that harmonically bridge prev_eff → bridge → effective_key
+            bridge_effs = []
+            _seen = set()
+            for _ck in camelot_keys:
+                for _cs in [-1, 0, 1]:
+                    _ce = shift_camelot_key(_ck, _cs)
+                    if _ce in _seen:
+                        continue
+                    if (transition_harmonic_costs[prev_eff][_ce][0] <= 0.5 and
+                            transition_harmonic_costs[_ce][effective_key][0] <= 0.5):
+                        _seen.add(_ce)
+                        bridge_effs.append(_ce)
+            keys_str = _expand_keys(bridge_effs) if bridge_effs else "—"
+
+            # BPM range: intersection of both neighbors' windows
+            _lo, _hi, _ok = _bpm_intersection(
+                prev_bpm - _thresh_int, prev_bpm + _thresh_int,
+                bpm - _thresh_int,      bpm + _thresh_int)
+            bpm_range = f"BPM {_lo}" if _lo == _hi else f"BPM {_lo}-{_hi}"
+
+            if t_cost > 0:
+                label = f"harmonic+tempo bridge {prev_eff}->{effective_key}, {prev_bpm}->{bpm} BPM"
+            else:
+                label = f"harmonic bridge {prev_eff}->{effective_key}"
+            print(f"   >> [{label}] - keys: {keys_str} - {bpm_range}")
+
+        else:
+            # Pure tempo bridge: keys compatible with prev_eff
+            compat_effs = []
+            _seen = set()
+            for _ck in camelot_keys:
+                for _cs in [-1, 0, 1]:
+                    _ce = shift_camelot_key(_ck, _cs)
+                    if _ce in _seen:
+                        continue
+                    if transition_harmonic_costs[prev_eff][_ce][0] <= 0.5:
+                        _seen.add(_ce)
+                        compat_effs.append(_ce)
+            keys_str = _expand_keys(compat_effs) if compat_effs else "any"
+
+            # BPM range: intersection of both neighbors' ±threshold windows
+            _lo, _hi, _ok = _bpm_intersection(
+                prev_bpm - _thresh_int, prev_bpm + _thresh_int,
+                bpm - _thresh_int,      bpm + _thresh_int)
+            if not _ok:
+                _mid = (prev_bpm + bpm + 1) // 2
+                bpm_range = f"BPM ~{_mid} (two-track bridge)"
+            elif _lo == _hi:
+                bpm_range = f"BPM {_lo}"
+            else:
+                bpm_range = f"BPM {_lo}-{_hi}"
+
+            direction = "up" if bpm > prev_bpm else "down"
+            print(f"   >> [tempo bridge {prev_bpm}->{bpm} ({direction})] - keys: {keys_str} - {bpm_range}")
+
+    print(f"{pos+1:2d}. {bpm_str:<7s}  {key_str:<10s} -> {eff_key_str:<5s}  {trans_info:<20s}  {track['title']} - {track['artist']}")
 
 
 

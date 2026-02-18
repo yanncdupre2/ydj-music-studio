@@ -94,6 +94,36 @@ pip install maturin
 cd src/ydj_mixer_engine && maturin develop --release
 ```
 
+## Phase C: Held-Karp Exact Optimizer ✅ COMPLETE
+
+For playlists with n ≤ 20 tracks, mixer.py now runs Held-Karp instead of SA, guaranteeing the **global optimum** — something SA cannot do regardless of attempt count.
+
+**Algorithm:** DP on bitmask subsets. State = (mask, last_track, last_shift). Transitions extend the path by one unvisited track with each possible shift, accumulating edge_cost + shift_penalty. Backtracking recovers the optimal order by searching the DP table (no parent table stored).
+
+**Measured performance (Apple Silicon, release build):**
+| n  | Time   |
+|----|--------|
+| 10 | 0.002s |
+| 15 | 0.091s |
+| 17 | 0.43s  |
+| 20 | 4.2s   |
+
+**Files:**
+- `src/ydj_mixer_engine/src/held_karp.rs` — new: DP + backtracking
+- `src/ydj_mixer_engine/src/lib.rs` — `optimize_mix_exact()` PyO3 export
+- `mixer/mixer.py` — dispatch: HK if n≤20 and Rust available, SA otherwise
+
+**Dispatch logic in `mixer.py`:**
+```python
+HELD_KARP_MAX_TRACKS = 20
+if USE_RUST and USE_RUST_EXACT and n <= HELD_KARP_MAX_TRACKS:
+    # Held-Karp: exact global optimum
+elif USE_RUST:
+    # SA: large playlists
+else:
+    # Python SA fallback
+```
+
 ## Implementation Order
 
 | Step | What | Speedup | Status |
@@ -101,6 +131,7 @@ cd src/ydj_mixer_engine && maturin develop --release
 | A1 | Delta cost in Python | ~5x | ✅ Done |
 | A2-A4 | Integer IDs + flat arrays | ~2x on top | ✅ Done |
 | A5-A7 | Swap-undo + minor opts | ~1.5x on top | ✅ Done |
-| B | Rust engine | 60x total | ✅ Done |
+| B | Rust SA engine | 60x total | ✅ Done |
+| C | Held-Karp exact optimizer (n≤20) | optimal | ✅ Done |
 
-Phase A achieved 2.8x (combined). Phase B achieves 60x in attempts/second, resulting in far better solution quality for the same time budget.
+Phase A achieved 2.8x (combined). Phase B achieves 60x in attempts/second. Phase C guarantees the global optimum for playlists up to 20 tracks.
