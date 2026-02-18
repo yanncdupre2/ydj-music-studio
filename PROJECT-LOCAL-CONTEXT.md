@@ -148,9 +148,12 @@ ydj-music-studio/
 - `library-management/sources/musicbrainz.py` - Source D: MusicBrainz API queries
 - `run-tagger.sh` - Wrapper to run tag_tracks.py from project root
 - `run-resolver.sh` - Wrapper to run resolve_tagger.py from project root
-- `mixer/mixer.py` - SA optimizer: reads "Mixer input" playlist, time-budgeted annealing, bridge key hints
-- `mixer/OPTIMIZER-PLAN.md` - Python + Rust optimization roadmap
-- `mixer/DOE-ANNEALING-PARAMS.md` - Experiment plan for tuning SA parameters
+- `mixer/mixer.py` - SA optimizer: Rust engine (USE_RUST) with Python fallback; reads "Mixer input" playlist
+- `mixer/OPTIMIZER-PLAN.md` - Python + Rust optimization roadmap (Phase B complete)
+- `mixer/DOE-ANNEALING-PARAMS.md` - SA parameter DOE results (nominal values confirmed optimal)
+- `src/ydj_mixer_engine/src/lib.rs` - PyO3 entry point: `optimize_mix()` exported to Python
+- `src/ydj_mixer_engine/src/annealing.rs` - Rust SA loop: timed multi-attempt, delta cost, escape mode
+- `src/ydj_mixer_engine/src/cost.rs` - Edge cost, shift optimizer on flat integer arrays
 - `common/apple_music.py` - XML reader + AppleScript playlist management (BPM/Comments/Rating fields)
 - `common/genres.json` - Canonical 31-genre taxonomy
 
@@ -197,6 +200,19 @@ cd ~/Projects/ydj-music-studio
 source venv/bin/activate
 python3 mixer/mixer.py
 # Reads from "Mixer input" Apple Music playlist, optimizes for 5 minutes
+# Uses Rust engine (ydj_mixer_engine) if built; Python fallback otherwise
+```
+
+### Rust Engine Build (required once after clone)
+```bash
+# Install Rust (one-time)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+# Build the extension into the venv
+cd ~/Projects/ydj-music-studio
+source venv/bin/activate
+pip install maturin
+cd src/ydj_mixer_engine && maturin develop --release
 ```
 
 ## Integrations / Assets

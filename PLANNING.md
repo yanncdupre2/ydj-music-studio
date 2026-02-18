@@ -107,11 +107,11 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 
 - ✅ Dynamic playlist input: reads from "Mixer input" Apple Music playlist via AppleScript (no more hardcoded track list or XML)
 - ✅ Added BPM, Comments, Rating fields to AppleScript playlist reader
-- ✅ Time-budgeted optimizer: runs annealing attempts until time limit (default 3 min) instead of fixed attempt count
+- ✅ Time-budgeted optimizer: runs annealing attempts until time limit (default 5 min) instead of fixed attempt count
 - ✅ Bridge key suggestions: for high-cost transitions, shows what keys an inserted track should have
 - ✅ 3x penalty for unreachable harmonic transitions (was 2x) to minimize H=15 transitions
 - ✅ Python-level SA optimization: delta cost evaluation (O(1) vs O(n) per iteration) + integer key lookups + flat cost arrays → 2.8x speedup
-- ✅ DOE for annealing parameters: 9 variations (3 initial temps × 3 final temps), 879 attempts — nominal values (500 → 0.1, 410k iterations) confirmed optimal; time budget increased to 5 min (~80 attempts)
+- ✅ DOE for annealing parameters: 9 variations (3 initial temps × 3 final temps), 879 attempts — nominal values (500 → 0.1, 410k iterations) confirmed optimal
 - Better visualization of optimization results (transition costs, flow chart)
 - Export optimized playlist back to Apple Music
 - Candidate library from DJ playlists (code ready, disabled)
@@ -135,21 +135,36 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Validation ensures no data corruption
 - Backup/restore workflow documented and tested
 
-### Phase 5: Rust Performance Engine (Planned)
+### Phase 5: Rust Performance Engine (Complete)
 **Goal:** 50-100x performance improvement for large playlists
 
-- Port SA optimization loop to Rust via PyO3/maturin
-- Python handles I/O (Apple Music, printing), Rust handles compute
-- Precomputed integer tables passed from Python; Rust is a pure optimization engine
-- Detailed plan in `mixer/OPTIMIZER-PLAN.md`
+- ✅ Port SA optimization loop to Rust via PyO3/maturin
+- ✅ Python handles I/O (Apple Music, printing), Rust handles compute
+- ✅ Precomputed integer tables passed from Python; Rust is a pure optimization engine
+- ✅ Detailed plan and results in `mixer/OPTIMIZER-PLAN.md`
 
 **Success Criteria:**
-- Rust engine produces equivalent results to Python version
-- 50x+ performance improvement (500+ attempts in 3 minutes vs current 50)
-- Fallback to Python SA loop when Rust module not installed
-- Seamless integration: `maturin develop --release` to build, same `mixer.py` entry point
+- ✅ Rust engine produces equivalent results to Python version
+- ✅ 60x throughput improvement measured (0.2 → 12.0 att/s); 3,561 attempts in 5 min vs ~80 Python
+- ✅ Fallback to Python SA loop when Rust module not installed
+- ✅ Seamless integration: `maturin develop --release` to build, same `mixer.py` entry point
 
 ## Key Decisions and Rationale
+
+### Decision: Rust SA Engine via PyO3 (Phase 5)
+**Context:** Python SA loop had been fully optimized (delta cost, integer arrays, swap-undo) but was still limited to ~80 attempts in 5 minutes for a 17-track playlist. DOE confirmed solution quality scales with attempt count, not temperature schedule.
+
+**Decision:** Port the entire SA inner loop (including timed outer multi-attempt loop) to Rust via PyO3/maturin. Python continues to own all I/O and reporting; precomputed tables are passed as flat Python lists.
+
+**Rationale:**
+- Rust eliminates Python interpreter overhead — tight numeric loops are order-of-magnitude faster
+- Zero-copy table passing: Python already had flat arrays from the Phase A optimizations
+- Graceful fallback: `ImportError` falls back to the Python loop seamlessly
+- DOE insight ("quality driven by attempt count") made the business case clear
+
+**Results:** 60x throughput (0.2 → 12.0 att/s); 3,561 attempts in 5 min vs ~80 Python; better solutions found consistently.
+
+**Date:** 2026-02-17
 
 ### Decision: Compound Genre Taxonomy
 **Context:** Is a song "House" or "Techno"? Classification ambiguity causes inconsistency.
@@ -279,9 +294,9 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - Production library updates validated against XML export
 
 ### Phase 5 (Rust Engine)
-- 50x+ performance improvement (500+ attempts in 3 minutes)
-- Equivalent optimization results vs. Python
-- Seamless Python wrapper integration via PyO3/maturin
+- ✅ 60x throughput improvement (3,561 attempts in 5 min vs ~80 Python)
+- ✅ Equivalent optimization results vs. Python (verified on smoke test + live run)
+- ✅ Seamless Python wrapper integration via PyO3/maturin with ImportError fallback
 
 ## Open Questions
 
