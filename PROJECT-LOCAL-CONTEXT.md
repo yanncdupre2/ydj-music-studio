@@ -4,11 +4,20 @@
 Comprehensive DJ music production and library management system for YDJ, encompassing playlist optimization (harmonic mixing), Apple Music library metadata management, and YouTube media processing.
 
 ## Current Priority
-**Phase C: Held-Karp exact optimizer** (complete — global optimum guaranteed for n ≤ 20 tracks); mixer output improvements also done this session.
+**Bridge candidate workflow**: 48 Apple Music smart playlists created (24 key-filter + 24 Candidates) to support manual bridge track selection for the mixer.
 
 ## Completed Phases
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
+
+## Recent Session (2026-02-18)
+- ✅ **Bridge candidate smart playlists**: 24 key-filter playlists + 24 Candidates playlists created in Apple Music
+  - Key-filter naming convention confirmed: `XA or Y(+1) or Z(-1)` where Y/Z are the base keys that reach XA via ±1 semitone shift
+  - Example: `6A or 11A(+1) or 1A(-1)` (not `6A(-1)` — the sign indicates the shift applied to the base key)
+  - Candidates playlists filter: IN key-filter playlist AND IN "DJ All" AND NOT IN "Mixer input"
+  - 22 key-filter playlists created manually; 21 Candidates playlists renamed via AppleScript (`osascript`)
+  - `mixer/create_key_playlists.py` written but unused (Apple Music `duplicate` creates regular playlists, not smart ones)
+- ✅ **AppleScript rename capability confirmed**: can rename any playlist (smart or regular) via `first playlist whose name is "..."` + `set name`
 
 ## Recent Session (2026-02-17, late night)
 - ✅ **Held-Karp exact optimizer implemented** (`src/ydj_mixer_engine/src/held_karp.rs`)
@@ -167,6 +176,7 @@ ydj-music-studio/
 - `library-management/sources/musicbrainz.py` - Source D: MusicBrainz API queries
 - `run-tagger.sh` - Wrapper to run tag_tracks.py from project root
 - `run-resolver.sh` - Wrapper to run resolve_tagger.py from project root
+- `mixer/create_key_playlists.py` - One-time utility: duplicates a template playlist and renames copies (used for Candidates playlists via AppleScript rename)
 - `mixer/mixer.py` - SA optimizer: Rust engine (USE_RUST) with Python fallback; reads "Mixer input" playlist
 - `mixer/OPTIMIZER-PLAN.md` - Python + Rust optimization roadmap (Phase B complete)
 - `mixer/DOE-ANNEALING-PARAMS.md` - SA parameter DOE results (nominal values confirmed optimal)
