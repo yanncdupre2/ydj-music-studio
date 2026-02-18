@@ -17,17 +17,6 @@ except ImportError:
     USE_RUST = False
     print("Rust SA engine not available — using Python SA loop")
 
-import argparse
-_parser = argparse.ArgumentParser(description="YDJ Mixer — playlist optimizer")
-_parser.add_argument(
-    "minutes", type=float, nargs="?", default=None,
-    help=f"Optimization time in minutes (default: {OPTIMIZER_TIME_LIMIT_MINUTES})"
-)
-_args = _parser.parse_args()
-if _args.minutes is not None:
-    OPTIMIZER_TIME_LIMIT_MINUTES = _args.minutes
-print(f"Time budget: {OPTIMIZER_TIME_LIMIT_MINUTES} min")
-
 from common.apple_music import load_playlist_from_app
 from camelot import parse_camelot, shift_camelot_key, extract_key_from_comments, camelot_to_pitch, pitch_to_camelot
 
@@ -66,6 +55,17 @@ REPORTING_RATE = 50000
 
 # Cooling factor is calculated such that the final temperature is reached at TOTAL iterations.
 COOLING_FACTOR = math.exp(math.log(FINAL_TEMP / INITIAL_TEMP) / TOTAL_ITERATIONS)
+
+import argparse
+_parser = argparse.ArgumentParser(description="YDJ Mixer — playlist optimizer")
+_parser.add_argument(
+    "minutes", type=float, nargs="?", default=None,
+    help=f"Optimization time in minutes (default: {OPTIMIZER_TIME_LIMIT_MINUTES})"
+)
+_args = _parser.parse_args()
+if _args.minutes is not None:
+    OPTIMIZER_TIME_LIMIT_MINUTES = _args.minutes
+print(f"Time budget: {OPTIMIZER_TIME_LIMIT_MINUTES} min")
 
 
 def remove_accents(input_str):
