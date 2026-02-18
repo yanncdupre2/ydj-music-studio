@@ -36,7 +36,7 @@ SHIFT_WEIGHT = 1
 
 # Annealing parameters
 
-OPTIMIZER_TIME_LIMIT_MINUTES = 3  # run annealing attempts until this time budget is exhausted (minimum 1 attempt)
+OPTIMIZER_TIME_LIMIT_MINUTES = 5  # run annealing attempts until this time budget is exhausted (minimum 1 attempt)
 MULTI_SWAP_FACTOR = 2 # number of times the number of tracks will be attempted to be swapped upon temperature escapes during the anealing iterations
 
 TOTAL_ITERATIONS = 410000

@@ -24,7 +24,7 @@ This subfolder focuses on **playlist optimization** using harmonic mixing and BP
 3. Try random track orderings with key shifts (-1, 0, +1 semitones)
 4. Score each ordering: harmonic cost + tempo cost + shift penalty
 5. Accept better solutions; occasionally accept worse (simulated annealing)
-6. Run attempts until time budget exhausted (default 3 minutes)
+6. Run attempts until time budget exhausted (default 5 minutes)
 7. Report best ordering with bridge key suggestions for high-cost transitions
 
 ### Cost Function
@@ -40,10 +40,10 @@ This subfolder focuses on **playlist optimization** using harmonic mixing and BP
 ## Current State
 
 - ✅ Reads from "Mixer input" Apple Music playlist (no hardcoded track list)
-- ✅ Time-budgeted optimizer (3 min default, ~50 attempts for 17 tracks)
+- ✅ Time-budgeted optimizer (5 min default, ~80 attempts for 17 tracks)
 - ✅ Delta cost SA optimization (O(1) per iteration with integer key lookups)
 - ✅ Bridge key suggestions for high-cost transitions
-- 🚧 DOE for tuning annealing parameters (`DOE-ANNEALING-PARAMS.md`)
+- ✅ DOE for annealing parameters completed — nominal values confirmed optimal (`DOE-ANNEALING-PARAMS.md`)
 - 🚧 Candidate library from DJ playlists (code ready, disabled)
 - Future: Rust SA engine for 50-100x speedup (`OPTIMIZER-PLAN.md`)
 

@@ -111,14 +111,15 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Bridge key suggestions: for high-cost transitions, shows what keys an inserted track should have
 - ✅ 3x penalty for unreachable harmonic transitions (was 2x) to minimize H=15 transitions
 - ✅ Python-level SA optimization: delta cost evaluation (O(1) vs O(n) per iteration) + integer key lookups + flat cost arrays → 2.8x speedup
-- 🚧 DOE for annealing parameters (initial temp, cooling factor) to optimize iterations per attempt
+- ✅ DOE for annealing parameters: 9 variations (3 initial temps × 3 final temps), 879 attempts — nominal values (500 → 0.1, 410k iterations) confirmed optimal; time budget increased to 5 min (~80 attempts)
 - Better visualization of optimization results (transition costs, flow chart)
 - Export optimized playlist back to Apple Music
-- Candidate library from DJ playlists (code ready, disabled pending DOE completion)
+- Candidate library from DJ playlists (code ready, disabled)
 
 **Success Criteria:**
 - ✅ Optimize playlist directly from Apple Music playlist name
 - ✅ Improve performance by 2-3x through algorithmic optimization (achieved 2.8x)
+- ✅ DOE validated annealing parameters (no further tuning needed)
 - Export results back to Apple Music as new playlist
 
 ### Phase 4: Safe Apple Music Write Testing (Complete)

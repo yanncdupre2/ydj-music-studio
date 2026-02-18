@@ -4,23 +4,31 @@
 Comprehensive DJ music production and library management system for YDJ, encompassing playlist optimization (harmonic mixing), Apple Music library metadata management, and YouTube media processing.
 
 ## Current Priority
-**Phase 3: Mixer Improvements** (Apple Music integration done, SA optimization done, DOE and Rust engine next)
+**Phase 3: Mixer Improvements** (SA optimization done, DOE complete, Rust engine next)
 
 ## Completed Phases
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
 
-## Recent Session (2026-02-17)
+## Recent Session (2026-02-17, evening)
+- ✅ DOE for SA annealing parameters completed: 9 variations (init temp 300/500/700 × final temp 0.05/0.1/0.15), 879 total attempts
+- ✅ **DOE conclusion**: nominal values (500 → 0.1, 410k iterations) confirmed optimal — no variation statistically better
+- ✅ **Key insight**: solution quality is driven by random initial arrangement, not temperature schedule (Pearson r = -0.135)
+- ✅ Time budget increased from 3 to 5 minutes (~80 attempts for 17 tracks)
+- ✅ DOE results saved to `mixer/doe_temperature_results.csv` (879 rows)
+- ✅ `DOE-ANNEALING-PARAMS.md` updated with full findings
+- **Next**: Rust SA engine (Phase 5) for 50-100x speedup
+
+## Previous Session (2026-02-17, morning)
 - ✅ Mixer reads from "Mixer input" Apple Music playlist via AppleScript (no hardcoded track list or XML)
 - ✅ Added BPM, Comments, Rating fields to `load_playlist_from_app()`
 - ✅ Added `load_dj_playlists_from_app()` for candidate library (disabled for now)
-- ✅ Time-budgeted optimizer: runs attempts until time limit (3 min default) instead of fixed count
+- ✅ Time-budgeted optimizer: runs attempts until time limit instead of fixed count
 - ✅ Bridge key suggestions for high-cost transitions (shows what keys to look for)
 - ✅ 3x penalty for unreachable harmonic transitions
-- ✅ SA performance optimization: delta cost (O(1) vs O(n)), integer key IDs, flat cost arrays → 2.8x speedup (50 attempts vs 19 in 3 min)
+- ✅ SA performance optimization: delta cost (O(1) vs O(n)), integer key IDs, flat cost arrays → 2.8x speedup
 - ✅ Created OPTIMIZER-PLAN.md (Python + Rust optimization roadmap)
 - ✅ Created DOE-ANNEALING-PARAMS.md (experiment plan for tuning SA parameters)
-- **Next**: Run DOE to tune annealing params, then implement Rust SA engine (Phase 5)
 
 ## Previous Session (2026-02-16)
 - ✅ Added locked fields: consistent metadata preserved, only inconsistent fields resolved
@@ -171,7 +179,7 @@ cd ~/Projects/ydj-music-studio/downloads
 cd ~/Projects/ydj-music-studio
 source venv/bin/activate
 python3 mixer/mixer.py
-# Reads from "Mixer input" Apple Music playlist, optimizes for 3 minutes
+# Reads from "Mixer input" Apple Music playlist, optimizes for 5 minutes
 ```
 
 ## Integrations / Assets

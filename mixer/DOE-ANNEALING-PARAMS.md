@@ -1,93 +1,67 @@
 # Design of Experiment: Annealing Parameters
 
 ## Goal
-Find the optimal initial temperature and cooling factor that minimize the number of iterations needed to converge to the best cost per attempt. This allows us to reduce iterations per attempt and run more attempts in a given time budget, exploring more random starting points.
+Find the optimal initial temperature and cooling schedule that minimize the number of iterations needed to converge to the best cost per attempt, allowing more attempts (random starting points) in a given time budget.
 
 ## Background
-Currently the cooling factor is auto-calculated from initial temp, final temp, and total iterations:
+The cooling factor is auto-calculated from initial temp, final temp, and total iterations:
 ```python
 COOLING_FACTOR = exp(ln(FINAL_TEMP / INITIAL_TEMP) / TOTAL_ITERATIONS)
 ```
-For the DOE, we decouple these: cooling factor becomes a fixed independent variable.
 
 ## Experiment Design
 
 ### Factors (3 × 3 = 9 experiments)
 
-**Initial Temperature** (nominal = 500):
-- Low: 375 (−25%)
-- Nominal: 500
-- High: 625 (+25%)
+**Initial Temperature**: 300, 500 (nominal), 700
 
-**Cooling Factor** (nominal ≈ 0.999979, i.e. `exp(ln(0.1/500)/410000)`):
-- Fast cooling: nominal × 0.90 (cools 10% faster per step)
-- Nominal: current value
-- Slow cooling: nominal × 1.10 (cools 10% slower per step, but clamped so factor < 1.0)
-
-Note: "nominal × 0.90" means the exponent (ln of the factor) is scaled by 0.90, making the factor slightly smaller (faster cooling). Concretely:
-```python
-nominal_factor = exp(ln(0.1 / 500) / 410000)  # ≈ 0.999979
-fast_factor = nominal_factor ** 1.1            # smaller, cools faster
-slow_factor = nominal_factor ** 0.9            # larger, cools slower
-```
+**Final Temperature**: 0.05, 0.1 (nominal), 0.15
 
 ### Duration
-Each experiment runs for 5 minutes (300 seconds) to get 50+ attempts per configuration.
+6 minutes per variation, 879 total attempts across 9 variations (~98 per variation).
 
-### Metric to Capture
-For each attempt: the **reporting bucket** (0, 50K, 100K, 150K, ..., 400K) at which the best cost was last improved. This tells us after how many iterations convergence typically happens.
+### Metrics Captured
+For each attempt:
+- **best_iter**: exact iteration number where best cost was last improved
+- **best_cost**: lowest cost achieved by that attempt
 
-## Implementation Plan
+## Results (2026-02-17)
 
-### 1. Modify `simulated_annealing_mix()` to accept parameters and return convergence info
-Add parameters: `initial_temp`, `cooling_factor` (overriding globals).
-Return additional value: `best_found_at_iter` — the iteration bucket (rounded down to nearest `REPORTING_RATE`) where `best_cost` was last updated.
+### Full DOE Summary
 
-### 2. Create `mixer/doe_annealing.py` script
-```python
-# Pseudocode
-experiments = []
-for temp in [375, 500, 625]:
-    for cooling_label, cooling_factor in [("fast", fast_cf), ("nominal", nom_cf), ("slow", slow_cf)]:
-        results = run_experiment(
-            initial_temp=temp,
-            cooling_factor=cooling_factor,
-            time_limit=300  # 5 minutes
-        )
-        experiments.append({
-            "temp": temp,
-            "cooling": cooling_label,
-            "attempts": len(results),
-            "convergence_buckets": [r.best_found_at for r in results],
-            "best_costs": [r.best_cost for r in results],
-        })
+| Init T | Fin T | #Att | Cost Min | Cost P25 | Cost Med | Cost P75 | Cost Max | Cost Avg | Iter Med | Iter Avg |
+|--------|-------|------|----------|----------|----------|----------|----------|----------|----------|----------|
+| 300 | 0.05 | 98 | 50.5 | 68.0 | 74.5 | 81.5 | 96.5 | 74.1 | 111,123 | 125,170 |
+| 300 | 0.10 | 97 | 50.5 | 66.0 | 71.5 | 80.8 | 98.0 | 72.7 | 123,035 | 127,228 |
+| 300 | 0.15 | 98 | 50.5 | 65.5 | 73.8 | 83.0 | 102.5 | 74.1 | 136,412 | 154,587 |
+| 500 | 0.05 | 98 | 50.5 | 64.9 | 75.0 | 80.6 | 105.5 | 73.5 | 110,370 | 125,993 |
+| 500 | 0.10 | 98 | 48.0 | 69.9 | 76.5 | 82.6 | 101.5 | 75.9 | 153,355 | 150,010 |
+| 500 | 0.15 | 97 | 50.5 | 64.0 | 73.0 | 80.8 | 102.0 | 73.4 | 103,516 | 123,866 |
+| 700 | 0.05 | 97 | 50.5 | 65.8 | 74.0 | 82.0 | 98.0 | 73.5 | 135,147 | 157,485 |
+| 700 | 0.10 | 98 | 50.5 | 65.2 | 74.5 | 81.6 | 94.0 | 73.4 | 128,496 | 140,358 |
+| 700 | 0.15 | 98 | 54.0 | 64.9 | 71.2 | 81.5 | 96.0 | 72.9 | 125,845 | 144,416 |
 
-# Report: for each experiment, show distribution of convergence buckets
-# e.g., "Temp=500, Cooling=nominal: 60% converged by 150K, 90% by 250K"
-```
+**Pearson correlation (best_iter vs best_cost): -0.135** (weak; late improvements slightly better)
 
-### 3. Output format
-For each of the 9 experiments, report:
-- Number of attempts completed
-- Distribution of convergence iteration buckets (histogram)
-- Mean and median best cost across attempts
-- Mean convergence bucket
+### Key Findings
 
-### 4. Analysis
-The winning configuration is the one where:
-1. Most attempts converge early (low mean convergence bucket)
-2. Best costs are competitive (not sacrificing quality for speed)
+1. **Temperature parameters don't significantly affect solution quality.** Cost medians range 71.2–76.5 across all 9 variations — well within noise. Cost averages are even tighter: 72.7–75.9. All percentile ranges overlap.
 
-This tells us the optimal `TOTAL_ITERATIONS` to set — e.g., if 90% of attempts converge by 200K, we can set `TOTAL_ITERATIONS = 200000` and run ~2× more attempts in the same time.
+2. **Temperature parameters don't significantly affect convergence speed.** Iteration medians range 103k–153k and averages 124k–158k with no consistent pattern by initial or final temperature. The tentative trend (higher init temp → faster convergence) observed in a small pilot did not hold up with ~98 attempts per cell.
 
-## Execution
-Run from project root:
-```bash
-python3 mixer/doe_annealing.py
-```
-Total runtime: 9 experiments × 5 minutes = ~45 minutes.
+3. **The dominant factor is the random initial arrangement**, not the temperature schedule. The Pearson correlation of -0.135 between iteration and cost confirms this: whether an attempt finds a good solution is almost entirely driven by its random starting point.
+
+4. **Late improvements (after 300k iterations) are rare but valuable.** Only 10.1% of attempts (89/879) found their best cost after iteration 300,000. However, these late-improving attempts produced slightly better solutions (median cost 71.5 vs 74.0 overall), so cutting iterations would sacrifice quality.
+
+5. **Nominal parameters are optimal.** No variation outperformed the nominal (500 → 0.1) in a statistically significant way. The current 410,000 iterations is well-sized.
+
+### Conclusion
+**Keep nominal values: Initial Temp = 500, Final Temp = 0.1, 410,000 iterations.** The best strategy for improving results is maximizing the number of attempts (random starting points) within the time budget, not tuning the temperature schedule. Time budget increased from 3 to 5 minutes to allow ~80 attempts per run.
+
+### Raw Data
+Full results saved in `doe_temperature_results.csv` (879 rows: initial_temp, final_temp, attempt, best_iter, best_cost).
 
 ## Future Refinements
-- Once the Rust engine is available, rerun the DOE with Rust for more statistical power (1000+ attempts per config)
+- Once the Rust engine is available, rerun with 1000+ attempts per config for even stronger statistical power
 - Test with different playlist sizes (15, 25, 40 tracks) since optimal params may scale with n
 - Consider adaptive cooling schedules (e.g., reheat on stagnation)
