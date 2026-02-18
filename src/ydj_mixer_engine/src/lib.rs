@@ -25,8 +25,15 @@ use cost::CostParams;
 ///   time_limit_secs - float  wall-clock budget in seconds
 ///
 /// Returns:
-///   (best_order: list[int], best_shifts: list[int], best_cost: float,
-///    cost_breakdown: (h, t, s), attempt_costs: list[(overall, h, t, s)], n_attempts: int)
+///   (best_order:     list[int],
+///    best_shifts:    list[int],
+///    best_cost:      float,
+///    cost_breakdown: (h, t, s),
+///    attempt_costs:  list[(overall, h, t, s)],
+///    n_attempts:     int,
+///    per_track_min:  list[float],   # indexed by track index
+///    per_track_max:  list[float],
+///    per_track_avg:  list[float])
 #[pyfunction]
 fn optimize_mix(
     bpms: Vec<i32>,
@@ -37,7 +44,13 @@ fn optimize_mix(
     cost_params_dict: std::collections::HashMap<String, f64>,
     annealing_params_dict: std::collections::HashMap<String, f64>,
     time_limit_secs: f64,
-) -> PyResult<(Vec<usize>, Vec<i8>, f64, (f64, f64, f64), Vec<(f64, f64, f64, f64)>, usize)> {
+) -> PyResult<(
+    Vec<usize>, Vec<i8>, f64,
+    (f64, f64, f64),
+    Vec<(f64, f64, f64, f64)>,
+    usize,
+    Vec<f64>, Vec<f64>, Vec<f64>,
+)> {
     let n = bpms.len();
     if n < 2 {
         return Err(pyo3::exceptions::PyValueError::new_err("Need at least 2 tracks"));
@@ -67,7 +80,7 @@ fn optimize_mix(
         multi_swap_factor: get(&annealing_params_dict, "multi_swap_factor")? as usize,
     };
 
-    let (best, attempt_costs) = annealing::run_timed(
+    let (best, attempt_costs, stats) = annealing::run_timed(
         n, &bpms, &base_key_ids, &shift_table, &direct_costs, &indirect_costs,
         &cp, &ap, time_limit_secs,
     );
@@ -80,6 +93,9 @@ fn optimize_mix(
         (best.h_cost, best.t_cost, best.s_cost),
         attempt_costs,
         n_attempts,
+        stats.min,
+        stats.max,
+        stats.avg,
     ))
 }
 

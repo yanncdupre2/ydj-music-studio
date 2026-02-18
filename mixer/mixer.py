@@ -17,6 +17,17 @@ except ImportError:
     USE_RUST = False
     print("Rust SA engine not available — using Python SA loop")
 
+import argparse
+_parser = argparse.ArgumentParser(description="YDJ Mixer — playlist optimizer")
+_parser.add_argument(
+    "minutes", type=float, nargs="?", default=None,
+    help=f"Optimization time in minutes (default: {OPTIMIZER_TIME_LIMIT_MINUTES})"
+)
+_args = _parser.parse_args()
+if _args.minutes is not None:
+    OPTIMIZER_TIME_LIMIT_MINUTES = _args.minutes
+print(f"Time budget: {OPTIMIZER_TIME_LIMIT_MINUTES} min")
+
 from common.apple_music import load_playlist_from_app
 from camelot import parse_camelot, shift_camelot_key, extract_key_from_comments, camelot_to_pitch, pitch_to_camelot
 
@@ -640,6 +651,9 @@ if USE_RUST:
         (h_best_rust, t_best_rust, s_best_rust),
         _attempt_costs,
         _n_attempts,
+        _per_track_min,
+        _per_track_max,
+        _per_track_avg,
     ) = _rust_optimize_mix(
         bpms,
         base_key_ids,
@@ -650,7 +664,7 @@ if USE_RUST:
         _ann_params,
         float(time_limit_seconds),
     )
-    # Rust returns shifts as Vec<i8>; convert to a per-track list (index = track index)
+    # Rust returns shifts as Vec<i8>; index = track index
     global_overall_best_shifts = list(_best_shifts_raw)
 
     total_elapsed = time.time() - optimizer_start
@@ -663,24 +677,10 @@ if USE_RUST:
     for i, (ov, h, t, s) in enumerate(_attempt_costs, 1):
         print(f"  Attempt {i:3d}: Overall={ov:5.1f}  H={h:5.1f}  T={t:5.1f}  S={s:5.1f}")
 
-    # Build per-track cost history from the final best order (one pass — Rust doesn't return per-attempt per-track data)
-    per_track = []
-    for pos, idx in enumerate(global_overall_best_order):
-        h_sum = 0.0
-        t_sum = 0.0
-        count = 0
-        if pos > 0:
-            prev_idx = global_overall_best_order[pos - 1]
-            h, t = transition_cost_components(prev_idx, idx, global_overall_best_shifts[prev_idx], global_overall_best_shifts[idx])
-            h_sum += h; t_sum += t; count += 1
-        if pos < n - 1:
-            next_idx = global_overall_best_order[pos + 1]
-            h, t = transition_cost_components(idx, next_idx, global_overall_best_shifts[idx], global_overall_best_shifts[next_idx])
-            h_sum += h; t_sum += t; count += 1
-        avg_h = h_sum / count if count else 0.0
-        avg_t = t_sum / count if count else 0.0
-        per_track.append({"idx": idx, "avg_total": avg_h + TEMPO_COST_WEIGHT * avg_t})
-    per_track_history.append({e["idx"]: e["avg_total"] for e in per_track})
+    # Encode per-track stats (min/max/avg across all attempts) for the summary table
+    # Use a synthetic per_track_history entry with avg, plus direct access to min/max
+    _rust_per_track_stats = {i: (_per_track_min[i], _per_track_avg[i], _per_track_max[i])
+                             for i in range(n)}  # track_idx -> (min, avg, max)
 
 else:
     # ---------------------------------------------------------------
@@ -740,19 +740,24 @@ print(f"Cost Breakdown: Harmonic: {h_best:5.1f}, Tempo: {t_best:5.1f}, Shift: {s
 
 from collections import defaultdict
 
-# Aggregate costs per track across attempts
-track_costs = defaultdict(list)  # track_idx -> list of avg_total values
-for attempt_record in per_track_history:
-    for idx, cost in attempt_record.items():
-        track_costs[idx].append(cost)
-
-# Build summary list and sort by average descending
+# Build summary list — source depends on engine used
 summary = []
-for idx, costs in track_costs.items():
-    mn = min(costs)
-    mx = max(costs)
-    avg = sum(costs) / len(costs)
-    summary.append((avg, idx, mn, mx, len(costs)))  # (average, index, min, max, runs)
+if USE_RUST:
+    # Rust returns pre-aggregated min/max/avg across all attempts
+    for idx, (mn, avg, mx) in _rust_per_track_stats.items():
+        summary.append((avg, idx, mn, mx, attempt))
+else:
+    # Python path: aggregate from per_track_history
+    track_costs = defaultdict(list)
+    for attempt_record in per_track_history:
+        for idx, cost in attempt_record.items():
+            track_costs[idx].append(cost)
+    for idx, costs in track_costs.items():
+        mn = min(costs)
+        mx = max(costs)
+        avg = sum(costs) / len(costs)
+        summary.append((avg, idx, mn, mx, len(costs)))
+
 summary.sort(reverse=True, key=lambda x: x[0])  # sort by avg descending
 
 # Print sorted summary table
