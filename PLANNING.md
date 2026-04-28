@@ -21,7 +21,7 @@ A comprehensive DJ music production and library management system encompassing t
 
 1. **Intelligent Playlist Optimization** - Harmonic mixing and BPM continuity using Camelot wheel system and simulated annealing
 2. **Automated Library Management** - Metadata tagging, cleanup, and LLM-powered genre categorization for Apple Music library
-3. **Efficient Media Processing** - YouTube download conversion and optimization for Apple ecosystem compatibility
+3. **Efficient Media Processing** - YouTube download, conversion, karaoke video enhancement, and optimization for Apple ecosystem compatibility
 
 ### In Scope
 - Harmonic mixing optimizer using Camelot wheel and key shifting
@@ -29,6 +29,9 @@ A comprehensive DJ music production and library management system encompassing t
 - Duplicate/discrepancy detection and cleanup workflows
 - Genre taxonomy with 31 compound categories (e.g., "EDM, House, Techno")
 - YouTube media processing (MKV→MP4, Opus→AAC conversion)
+- YouTube video downloading via yt-dlp (h264/1080p, Safari cookies for YouTube Premium)
+- YouTube download renaming (`rename_youtube.py` — artist/title/type normalization using Apple Music library)
+- Karaoke video enhancement for overlay (color swap, glow, logo masking via ffmpeg)
 - File renaming based on metadata tags
 - Safe read-only Apple Music integration (initial phase)
 

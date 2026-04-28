@@ -4,11 +4,30 @@
 Comprehensive DJ music production and library management system for YDJ, encompassing playlist optimization (harmonic mixing), Apple Music library metadata management, and YouTube media processing.
 
 ## Current Priority
-**Bridge candidate workflow**: 48 Apple Music smart playlists created (24 key-filter + 24 Candidates) to support manual bridge track selection for the mixer.
+**Karaoke video processing pipeline**: ffmpeg filter chain for enhancing karaoke videos for overlay on music videos (orange→green color swap, glow, logo masking). Performance optimization needed (geq filter is 0.1x realtime). Need to analyze Sing King channel videos next.
 
 ## Completed Phases
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
+
+## Recent Session (2026-04-27/28)
+- ✅ **yt-dlp setup**: Configured `~/.config/yt-dlp/config` for YouTube downloading
+  - h264 codec (not AV1 — macOS Quick Look incompatible), 1080p max, Safari cookies for YouTube Premium
+  - No metadata embedding, no thumbnails (Apple Music tags set manually)
+  - Downloads to `~/Movies/YouTube Downloads/`
+- ✅ **YouTube rename script** (`downloads/rename_youtube.py`):
+  - Uses Apple Music library (3,575 artists from CSV) to detect artist vs. title in ambiguous YouTube titles
+  - Normalizes to `Artist - Title (Video/Karaoke/Lyrics Video).mp4` format
+  - Handles: feat. normalization, fullwidth Unicode, @handles, karaoke prefix, noise tags
+  - Idempotent (skips already well-formed files), duplicate-safe (adds index suffix)
+  - Dry-run by default, `--apply` to rename
+- ✅ **Karaoke video processing** (`docs/karaoke-video-processing.md`):
+  - ffmpeg filter pipeline: `format=gbrp` → `drawbox` (logo) → `geq` (orange→green) → `lutrgb` (black threshold) → `curves` (brightness) → `gblur+blend` (glow) → final cleanup
+  - Key insight: must use `format=gbrp` (planar RGB) throughout to avoid YUV chroma contamination (purple backgrounds)
+  - Key insight: `addition` blend (not `screen`) for glow — screen lifts blacks
+  - Tested on "Musisi Karaoke" channel APT. video — excellent results
+  - **Performance issue**: `geq` filter runs at ~0.1x realtime (40 min for 4 min song) — needs optimization
+  - TODO: Analyze Sing King channel (different colors, thinner font)
 
 ## Recent Session (2026-02-18)
 - ✅ **Bridge candidate smart playlists**: 24 key-filter playlists + 24 Candidates playlists created in Apple Music
@@ -142,6 +161,7 @@ ydj-music-studio/
 │
 ├── downloads/                     # YouTube download processing
 │   ├── CLAUDE.md                  # Download processing AI context
+│   ├── rename_youtube.py          # Rename YouTube downloads (Artist - Title format)
 │   ├── process_mkv.sh             # Video classification (real vs static image)
 │   ├── convert_mkv_to_mp4.sh      # Lossless remuxing
 │   ├── reencode_mkv_to_mp4.sh     # Transcoding for incompatible codecs
@@ -156,6 +176,7 @@ ydj-music-studio/
 │
 ├── venv/                          # Python virtual environment (gitignored)
 ├── docs/                          # Additional documentation
+│   └── karaoke-video-processing.md  # ffmpeg filter reference for karaoke enhancement
 └── src/
     └── ydj_mixer_engine/          # Rust SA engine (Phase 5)
         ├── Cargo.toml             # pyo3 + rand deps
@@ -186,6 +207,9 @@ ydj-music-studio/
 - `src/ydj_mixer_engine/src/held_karp.rs` - Held-Karp DP exact optimizer (n ≤ 20)
 - `common/apple_music.py` - XML reader + AppleScript playlist management (BPM/Comments/Rating fields)
 - `common/genres.json` - Canonical 31-genre taxonomy
+- `downloads/rename_youtube.py` - YouTube download renamer (uses Apple Music artist list for disambiguation)
+- `docs/karaoke-video-processing.md` - ffmpeg filter reference for karaoke video enhancement (color swap, glow, logo masking)
+- `~/.config/yt-dlp/config` - yt-dlp configuration (h264/1080p, no metadata, Safari cookies)
 
 ## Run Commands / Environment
 
@@ -211,6 +235,18 @@ pip install -r requirements.txt
   - Fallback: Database ID (legacy compatibility)
 **XML Export:** Used for bulk metadata reading (`~/YDJ Library.xml`)
 
+### YouTube Downloading (yt-dlp)
+```bash
+# Download a video or playlist
+yt-dlp "https://www.youtube.com/watch?v=...&list=PL..."
+# Config at ~/.config/yt-dlp/config: h264, 1080p, Safari cookies, no metadata/thumbnails
+# Downloads to ~/Movies/YouTube Downloads/
+
+# Rename downloaded files to consistent format
+python3 downloads/rename_youtube.py          # dry-run
+python3 downloads/rename_youtube.py --apply  # actually rename
+```
+
 ### Media Processing (ffmpeg)
 ```bash
 # Install ffmpeg via Homebrew (if not already installed)
@@ -222,6 +258,8 @@ cd ~/Projects/ydj-music-studio/downloads
 ./convert_mkv_to_mp4.sh    # Lossless remux compatible files
 ./reencode_all_mkv.sh      # Transcode incompatible codecs
 ./convert_opus_to_aac.sh   # Convert Opus audio to AAC
+
+# Karaoke video processing — see docs/karaoke-video-processing.md for full filter reference
 ```
 
 ### Mixer Usage (Current)
