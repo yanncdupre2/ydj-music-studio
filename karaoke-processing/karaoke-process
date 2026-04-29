@@ -1,0 +1,241 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  karaoke-process INPUT_FILE [options]
+
+Description:
+  Processes karaoke videos by blacking out everything outside a central box,
+  then remapping luminance bands to fixed colors:
+    - black  = 0,0,0
+    - white  = 255,255,255
+    - green  = 0,200,0
+
+Required arguments:
+  INPUT_FILE   Path to the input video file
+
+Optional arguments:
+  -t TOP%      Top margin to mask, as percent of height
+               Default: 5%
+  -b BOTTOM%   Bottom margin to mask, as percent of height
+               Default: 15%
+  -l LEFT%     Left margin to mask, as percent of width
+               Default: 15%
+  -r RIGHT%    Right margin to mask, as percent of width
+               Default: 5%
+  -lo LOW      Lower threshold (0-255)
+               Default: 40
+  -hi HIGH     Upper threshold (0-255)
+               Default: 80
+  -f SECONDS   Extract and process only a still frame at this timestamp
+  --corners-only
+               Black out only the corners implied by the margins instead of
+               blacking out full top/bottom/left/right strips
+  -h           Show this help
+
+Examples:
+  karaoke-process "/path/video.mp4"
+  karaoke-process "/path/video.mp4" -t 20% -b 20% -l 20% -r 20% -lo 24 -hi 80
+  karaoke-process "/path/video.mp4" -f 90
+  karaoke-process "/path/video.mp4" -b 20% -l 20% --corners-only -f 90
+EOF
+}
+
+die() {
+  echo "Error: $*" >&2
+  exit 1
+}
+
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
+}
+
+parse_percent() {
+  local raw="$1"
+  [[ "$raw" =~ ^([0-9]+([.][0-9]+)?)%$ ]] || die "Invalid percentage: $raw"
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+validate_threshold() {
+  local name="$1"
+  local value="$2"
+  [[ "$value" =~ ^[0-9]+$ ]] || die "$name must be an integer: $value"
+  (( value >= 0 && value <= 255 )) || die "$name must be between 0 and 255: $value"
+}
+
+percent_to_px() {
+  local percent="$1"
+  local dim="$2"
+  awk -v p="$percent" -v d="$dim" 'BEGIN { printf "%d\n", int((p * d / 100) + 0.5) }'
+}
+
+basename_no_ext() {
+  local path="$1"
+  local name
+  name="$(basename "$path")"
+  printf '%s\n' "${name%.*}"
+}
+
+escape_label_percent() {
+  local raw="$1"
+  printf '%s\n' "${raw%%%}"
+}
+
+require_cmd ffmpeg
+require_cmd ffprobe
+require_cmd awk
+
+if (( $# == 0 )); then
+  usage
+  exit 1
+fi
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+input_file="$1"
+shift
+
+[[ -f "$input_file" ]] || die "Input file not found: $input_file"
+
+top_raw="5%"
+bottom_raw="15%"
+left_raw="15%"
+right_raw="5%"
+low_thr="40"
+high_thr="80"
+frame_seconds=""
+corners_only="false"
+
+while (( $# > 0 )); do
+  case "$1" in
+    -t)
+      (( $# >= 2 )) || die "Missing value for -t"
+      top_raw="$2"
+      shift 2
+      ;;
+    -b)
+      (( $# >= 2 )) || die "Missing value for -b"
+      bottom_raw="$2"
+      shift 2
+      ;;
+    -l)
+      (( $# >= 2 )) || die "Missing value for -l"
+      left_raw="$2"
+      shift 2
+      ;;
+    -r)
+      (( $# >= 2 )) || die "Missing value for -r"
+      right_raw="$2"
+      shift 2
+      ;;
+    -lo)
+      (( $# >= 2 )) || die "Missing value for -lo"
+      low_thr="$2"
+      shift 2
+      ;;
+    -hi)
+      (( $# >= 2 )) || die "Missing value for -hi"
+      high_thr="$2"
+      shift 2
+      ;;
+    -f)
+      (( $# >= 2 )) || die "Missing value for -f"
+      frame_seconds="$2"
+      shift 2
+      ;;
+    --corners-only)
+      corners_only="true"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "Unknown argument: $1"
+      ;;
+  esac
+done
+
+top_mask_pct="$(parse_percent "$top_raw")"
+bottom_mask_pct="$(parse_percent "$bottom_raw")"
+left_mask_pct="$(parse_percent "$left_raw")"
+right_mask_pct="$(parse_percent "$right_raw")"
+
+validate_threshold "Lower threshold" "$low_thr"
+validate_threshold "Upper threshold" "$high_thr"
+(( low_thr < high_thr )) || die "Lower threshold must be less than upper threshold"
+
+if [[ -n "$frame_seconds" ]]; then
+  [[ "$frame_seconds" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "-f must be a non-negative number of seconds"
+fi
+
+width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$input_file")"
+height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$input_file")"
+
+[[ -n "$width" && -n "$height" ]] || die "Could not determine video dimensions"
+
+left_mask_px="$(percent_to_px "$left_mask_pct" "$width")"
+right_mask_px="$(percent_to_px "$right_mask_pct" "$width")"
+top_mask_px="$(percent_to_px "$top_mask_pct" "$height")"
+bottom_mask_px="$(percent_to_px "$bottom_mask_pct" "$height")"
+
+(( left_mask_px >= 0 && left_mask_px <= width )) || die "Computed left margin is out of range"
+(( right_mask_px >= 0 && right_mask_px <= width )) || die "Computed right margin is out of range"
+(( top_mask_px >= 0 && top_mask_px <= height )) || die "Computed top margin is out of range"
+(( bottom_mask_px >= 0 && bottom_mask_px <= height )) || die "Computed bottom margin is out of range"
+(( left_mask_px + right_mask_px < width )) || die "Left + right margins must leave visible width"
+(( top_mask_px + bottom_mask_px < height )) || die "Top + bottom margins must leave visible height"
+
+left_px="$left_mask_px"
+right_px=$(( width - right_mask_px ))
+top_px="$top_mask_px"
+bottom_px=$(( height - bottom_mask_px ))
+
+base_name="$(basename_no_ext "$input_file")"
+input_dir="$(cd "$(dirname "$input_file")" && pwd)"
+top_label="$(escape_label_percent "$top_raw")"
+bottom_label="$(escape_label_percent "$bottom_raw")"
+left_label="$(escape_label_percent "$left_raw")"
+right_label="$(escape_label_percent "$right_raw")"
+box_label="box-${top_label}-${bottom_label}-${left_label}-${right_label}"
+thr_label="bwg-${low_thr}-${high_thr}"
+
+if [[ "$corners_only" == "true" ]]; then
+  mask_filter="drawbox=x=0:y=0:w=${left_px}:h=${top_px}:color=black:t=fill,drawbox=x=${right_px}:y=0:w=iw-${right_px}:h=${top_px}:color=black:t=fill,drawbox=x=0:y=${bottom_px}:w=${left_px}:h=ih-${bottom_px}:color=black:t=fill,drawbox=x=${right_px}:y=${bottom_px}:w=iw-${right_px}:h=ih-${bottom_px}:color=black:t=fill"
+  box_mode_label="corners"
+else
+  mask_filter="drawbox=x=0:y=0:w=iw:h=${top_px}:color=black:t=fill,drawbox=x=0:y=${bottom_px}:w=iw:h=ih-${bottom_px}:color=black:t=fill,drawbox=x=0:y=${top_px}:w=${left_px}:h=${bottom_px}-${top_px}:color=black:t=fill,drawbox=x=${right_px}:y=${top_px}:w=iw-${right_px}:h=${bottom_px}-${top_px}:color=black:t=fill"
+  box_mode_label="outer"
+fi
+process_filter="${mask_filter},hue=s=0,lutrgb=r='if(lt(val,${low_thr}),0,if(lt(val,${high_thr}),255,0))':g='if(lt(val,${low_thr}),0,if(lt(val,${high_thr}),255,200))':b='if(lt(val,${low_thr}),0,if(lt(val,${high_thr}),255,0))'"
+
+if [[ -n "$frame_seconds" ]]; then
+  frame_label="${frame_seconds//./_}"
+  masked_png="${input_dir}/${base_name} [frame-${frame_label} masked-${box_mode_label} ${box_label}].png"
+  processed_png="${input_dir}/${base_name} [frame-${frame_label} processed-${box_mode_label} ${box_label} ${thr_label}].png"
+
+  ffmpeg -y -ss "$frame_seconds" -i "$input_file" \
+    -frames:v 1 -vf "$mask_filter" -update 1 "$masked_png"
+
+  ffmpeg -y -ss "$frame_seconds" -i "$input_file" \
+    -frames:v 1 -vf "$process_filter" -update 1 "$processed_png"
+
+  printf 'Created:\n%s\n%s\n' "$masked_png" "$processed_png"
+else
+  output_video="${input_dir}/${base_name} [${box_mode_label} ${box_label} ${thr_label}].mp4"
+
+  ffmpeg -y -i "$input_file" \
+    -map 0:v:0 -map 0:a:0 -map_chapters -1 -dn \
+    -vf "$process_filter" \
+    -c:v libx264 -pix_fmt yuv420p -crf 18 -preset medium -c:a copy \
+    "$output_video"
+
+  printf 'Created:\n%s\n' "$output_video"
+fi

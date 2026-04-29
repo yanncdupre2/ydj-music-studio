@@ -4,13 +4,26 @@
 Comprehensive DJ music production and library management system for YDJ, encompassing playlist optimization (harmonic mixing), Apple Music library metadata management, and YouTube media processing.
 
 ## Current Priority
-**Karaoke video processing pipeline**: ffmpeg filter chain for enhancing karaoke videos for overlay on music videos (orange→green color swap, glow, logo masking). Performance optimization needed (geq filter is 0.1x realtime). Need to analyze Sing King channel videos next.
+**Karaoke video processing pipeline**: ✅ Breakthrough achieved. The slow `geq` color-swap approach was replaced by a fast luminance-LUT pipeline implemented in `karaoke-processing/karaoke-process` (installed globally at `~/.local/bin/karaoke-process`). Three luminance bands map to fixed RGB outputs (black / white / green), with configurable edge masks and a still-frame tuning mode. Runs near realtime on 1080p. Next: validate overlay blending in Final Cut Pro across multiple karaoke channels.
 
 ## Completed Phases
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
 
-## Recent Session (2026-04-27/28)
+## Recent Session (2026-04-28)
+- ✅ **Karaoke processing breakthrough** — replaced slow `geq` color-swap pipeline with luminance-LUT approach
+  - New batch tool: `karaoke-processing/karaoke-process` (bash + ffmpeg), installed at `~/.local/bin/karaoke-process` (on PATH, callable from anywhere)
+  - Approach: convert to grayscale (`hue=s=0`), then `lutrgb` maps luminance bands to fixed colors:
+    - `val < lo` → black `(0,0,0)`
+    - `lo ≤ val < hi` → white `(255,255,255)`
+    - `val ≥ hi` → green `(0,200,0)`
+  - Defaults: `-lo 40 -hi 80`, edge masks `-t 5% -b 15% -l 15% -r 5%`
+  - Edge masking via `drawbox` (full strips by default, or `--corners-only` for just the implied corners)
+  - **Still-frame mode** (`-f SECONDS`): emits a masked-only PNG and a fully-processed PNG at that timestamp — used to tune `-lo`/`-hi` thresholds and mask geometry without re-encoding the whole video
+  - Output naming encodes parameters: `[outer box-T-B-L-R bwg-LO-HI].mp4` for video, `[frame-N processed-... bwg-LO-HI].png` for stills
+  - Full-video mode: re-encodes video (libx264, yuv420p, crf 18), copies audio, strips chapters/data tracks
+  - Performance: near realtime on 1080p (vs `geq` at ~0.1x); a 4-minute song now processes in minutes, not 40 min
+  - Goal/rationale and channel-specific findings (Musisi/Sing King/Party Tyme starting points, tuning workflow) lifted into `karaoke-process.md`; the old `geq`-based design doc was moved to Trash since the technical pipeline is fully superseded
 - ✅ **yt-dlp setup**: Configured `~/.config/yt-dlp/config` for YouTube downloading
   - h264 codec (not AV1 — macOS Quick Look incompatible), 1080p max, Safari cookies for YouTube Premium
   - No metadata embedding, no thumbnails (Apple Music tags set manually)
@@ -21,13 +34,6 @@ Comprehensive DJ music production and library management system for YDJ, encompa
   - Handles: feat. normalization, fullwidth Unicode, @handles, karaoke prefix, noise tags
   - Idempotent (skips already well-formed files), duplicate-safe (adds index suffix)
   - Dry-run by default, `--apply` to rename
-- ✅ **Karaoke video processing** (`docs/karaoke-video-processing.md`):
-  - ffmpeg filter pipeline: `format=gbrp` → `drawbox` (logo) → `geq` (orange→green) → `lutrgb` (black threshold) → `curves` (brightness) → `gblur+blend` (glow) → final cleanup
-  - Key insight: must use `format=gbrp` (planar RGB) throughout to avoid YUV chroma contamination (purple backgrounds)
-  - Key insight: `addition` blend (not `screen`) for glow — screen lifts blacks
-  - Tested on "Musisi Karaoke" channel APT. video — excellent results
-  - **Performance issue**: `geq` filter runs at ~0.1x realtime (40 min for 4 min song) — needs optimization
-  - TODO: Analyze Sing King channel (different colors, thinner font)
 
 ## Recent Session (2026-02-18)
 - ✅ **Bridge candidate smart playlists**: 24 key-filter playlists + 24 Candidates playlists created in Apple Music
@@ -175,8 +181,9 @@ ydj-music-studio/
 │   └── your_music_library.csv     # Legacy (can archive)
 │
 ├── venv/                          # Python virtual environment (gitignored)
-├── docs/                          # Additional documentation
-│   └── karaoke-video-processing.md  # ffmpeg filter reference for karaoke enhancement
+├── karaoke-processing/            # Karaoke video processing batch tool
+│   ├── karaoke-process            # Bash + ffmpeg script (installed at ~/.local/bin/karaoke-process)
+│   └── karaoke-process.md         # Authoritative reference: goal/rationale, usage, options, channel-specific starting points, tuning workflow
 └── src/
     └── ydj_mixer_engine/          # Rust SA engine (Phase 5)
         ├── Cargo.toml             # pyo3 + rand deps
@@ -208,7 +215,9 @@ ydj-music-studio/
 - `common/apple_music.py` - XML reader + AppleScript playlist management (BPM/Comments/Rating fields)
 - `common/genres.json` - Canonical 31-genre taxonomy
 - `downloads/rename_youtube.py` - YouTube download renamer (uses Apple Music artist list for disambiguation)
-- `docs/karaoke-video-processing.md` - ffmpeg filter reference for karaoke video enhancement (color swap, glow, logo masking)
+- `karaoke-processing/karaoke-process` - Bash batch tool for karaoke video prep (luminance-LUT pipeline; mirrored to `~/.local/bin/karaoke-process`)
+- `karaoke-processing/karaoke-process.md` - Authoritative reference: goal/rationale, options, defaults, still-frame mode, output naming, channel-specific starting points (Musisi/Sing King/Party Tyme), tuning workflow
+- `~/.local/bin/karaoke-process` - Installed copy of the batch tool (PATH-accessible from anywhere)
 - `~/.config/yt-dlp/config` - yt-dlp configuration (h264/1080p, no metadata, Safari cookies)
 
 ## Run Commands / Environment
@@ -259,7 +268,13 @@ cd ~/Projects/ydj-music-studio/downloads
 ./reencode_all_mkv.sh      # Transcode incompatible codecs
 ./convert_opus_to_aac.sh   # Convert Opus audio to AAC
 
-# Karaoke video processing — see docs/karaoke-video-processing.md for full filter reference
+# Karaoke video processing — use the karaoke-process batch tool (installed globally)
+# Full reference: karaoke-processing/karaoke-process.md
+karaoke-process "/path/to/video.mp4"                              # full video, defaults
+karaoke-process "/path/to/video.mp4" -lo 24 -hi 80                # custom luminance thresholds
+karaoke-process "/path/to/video.mp4" -t 20% -b 20% -l 20% -r 20%  # custom edge masks
+karaoke-process "/path/to/video.mp4" -f 90                        # still-frame at 90s (PNG outputs for tuning)
+karaoke-process "/path/to/video.mp4" -b 20% -l 20% --corners-only -f 20  # corners-only mask preview
 ```
 
 ### Mixer Usage (Current)

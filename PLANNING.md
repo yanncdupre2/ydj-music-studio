@@ -31,7 +31,7 @@ A comprehensive DJ music production and library management system encompassing t
 - YouTube media processing (MKV→MP4, Opus→AAC conversion)
 - YouTube video downloading via yt-dlp (h264/1080p, Safari cookies for YouTube Premium)
 - YouTube download renaming (`rename_youtube.py` — artist/title/type normalization using Apple Music library)
-- Karaoke video enhancement for overlay (color swap, glow, logo masking via ffmpeg)
+- Karaoke video enhancement for FCP overlay blending (luminance-LUT remap + edge masking via ffmpeg; `karaoke-process` batch tool)
 - File renaming based on metadata tags
 - Safe read-only Apple Music integration (initial phase)
 
@@ -155,6 +155,27 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Seamless integration: `maturin develop --release` to build, same `mixer.py` entry point
 
 ## Key Decisions and Rationale
+
+### Decision: Luminance-LUT Karaoke Pipeline (replaces `geq` color-match)
+**Context:** The original karaoke processing pipeline used ffmpeg's `geq` filter to do per-pixel color detection (orange → green) plus `gblur+blend` for glow. It worked visually but ran at ~0.1x realtime on 1080p — a 4-minute song took ~40 minutes to process.
+
+**Decision:** Replace the `geq`-based pipeline with a luminance-LUT approach: convert the masked frame to grayscale (`hue=s=0`), then map three luminance bands to fixed RGB outputs using `lutrgb` — `< lo` → black `(0,0,0)`, `lo ≤ val < hi` → white `(255,255,255)`, `≥ hi` → green `(0,200,0)`. Packaged as `karaoke-process` (bash + ffmpeg), installed at `~/.local/bin/karaoke-process` for global access.
+
+**Rationale:**
+- `lutrgb` is a per-channel scalar LUT — orders of magnitude faster than `geq`'s expression evaluator
+- Near realtime on 1080p (a 4-minute song now processes in minutes, not 40 min)
+- Output is fully deterministic: every pixel ends up as one of three exact RGB values, which makes FCP `screen`/`add` blending behave predictably
+- Built-in still-frame mode (`-f SECONDS`) emits PNGs for fast threshold/mask tuning before committing to a full re-encode
+- Drops the glow stage (formerly `gblur+blend`); if a bloom is wanted, apply it as a separate FCP effect on the overlay layer
+- Side benefit: no `geq` means no YUV chroma contamination concerns, so no need for the `format=gbrp` workaround
+
+**Alternatives Considered:**
+- Keep `geq`, optimize via `colorchannelmixer` / GPU acceleration / lower resolution: rejected — the LUT approach made these unnecessary
+- Python + OpenCV vectorization: rejected — heavier dependency for what turned out to be a one-liner LUT in ffmpeg
+
+**Tradeoff:** Color matching is now indirect (via luminance, not RGB ratios). Channels whose sung/unsung text don't separate cleanly by luminance (e.g., Party Tyme, where sung-green and unsung-white are both "bright" but at different luminances that the LUT would invert) are not a good fit for this tool.
+
+**Date:** 2026-04-28
 
 ### Decision: Held-Karp Exact Optimizer (Phase C)
 **Context:** Rust SA engine runs 3,561 attempts in 5 min but still cannot guarantee the global optimum. With 17 tracks, SA found best cost 40.5 over thousands of attempts; Held-Karp found 40.5 in 0.43s — guaranteed optimal.
