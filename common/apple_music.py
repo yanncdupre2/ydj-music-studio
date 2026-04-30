@@ -281,6 +281,40 @@ def load_playlist_from_app(playlist_name):
     return pd.DataFrame(rows)
 
 
+def get_all_artists_from_app():
+    """Return the set of all unique artist + album artist names in the library.
+
+    Reads live from Apple Music via AppleScript using bulk property fetches
+    (one call per property, not per track) for speed. "Various Artists" is
+    excluded.
+
+    Returns:
+        set[str]: unique artist names (original case)
+    """
+    script = '''
+    tell application "Music"
+        set tids to AppleScript's text item delimiters
+        set AppleScript's text item delimiters to linefeed
+        set artistText to (artist of every track of library playlist 1) as text
+        set albumArtistText to (album artist of every track of library playlist 1) as text
+        set AppleScript's text item delimiters to tids
+        return artistText & linefeed & "---SEP---" & linefeed & albumArtistText
+    end tell
+    '''
+    result = subprocess.run(
+        ['osascript', '-e', script],
+        capture_output=True, text=True, check=True,
+    )
+
+    artists = set()
+    for line in result.stdout.split('\n'):
+        line = line.strip()
+        if not line or line == '---SEP---' or line == 'Various Artists':
+            continue
+        artists.add(line)
+    return artists
+
+
 def load_dj_playlists_from_app():
     """Load tracks from both DJ master playlists via AppleScript.
 

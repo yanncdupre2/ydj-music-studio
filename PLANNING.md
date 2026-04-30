@@ -96,6 +96,8 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ AppleScript artist+name search (eliminates stale XML database ID dependency)
 - ✅ Locked fields: consistent metadata preserved, only inconsistent fields resolved
 - ✅ Targeted web search (Source C) for year-only inconsistencies to avoid MusicBrainz reissue years
+- ✅ Live AppleScript artist fetch (`get_all_artists_from_app()`) — eliminates stale CSV dependency in `rename_youtube.py`
+- ✅ Karaoke filename support (`[Karaoke]` brackets) + aggressive noise stripping for branded karaoke channels
 - 🚧 Audit library metadata quality (missing BPMs, keys)
 - BPM detection and tagging for tracks missing tempo data
 

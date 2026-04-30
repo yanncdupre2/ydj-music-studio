@@ -6,7 +6,8 @@ when YouTube titles are inconsistently ordered.
 
 Output format:
     Artist - Title (Video).mp4          # for music videos
-    Artist - Title (Karaoke).mp4        # for karaoke tracks
+    Artist - Title (Lyrics Video).mp4   # for lyrics videos
+    Artist - Title [Karaoke].mp4        # for karaoke tracks (square brackets)
     Artist ft. Guest - Title (Remix).mp4  # featuring + remix preserved
 
 Usage:
@@ -27,7 +28,7 @@ import unicodedata
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
-import pandas as pd
+from common.apple_music import get_all_artists_from_app
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -103,7 +104,27 @@ FULLWIDTH_MAP = {
     '\uff02': '',     # ＂ → strip (decorative quotes)
     '\u2013': '-',    # –
     '\u2014': '-',    # —
+    '\u3010': '[',   # 【 → [
+    '\u3011': ']',   # 】 → ]
+    '\u29f8': '/',   # ⧸ (big solidus)
 }
+
+# Known karaoke channel/brand names — also stripped when KARAOKE_RE matched.
+# These don't contain the word "karaoke" but are clearly karaoke-source noise.
+KARAOKE_BRANDS = r'(?:KaraFun|Zoom Karaoke|Sing King|Musisi|Party Tyme)'
+
+# Aggressive karaoke noise patterns — applied only when KARAOKE_RE matched.
+# Strips bracketed/parenthesized groups containing "karaoke" anywhere inside,
+# plus trailing/embedded karaoke labels separated by dashes or pipes.
+KARAOKE_NOISE_PATTERNS = [
+    re.compile(r'\s*\([^)]*karaok[eé][^)]*\)', re.IGNORECASE),
+    re.compile(r'\s*\[[^\]]*karaok[eé][^\]]*\]', re.IGNORECASE),
+    re.compile(r'\s+[-–—|]\s*[^-–—|]*karaok[eé][^-–—|]*$', re.IGNORECASE),
+    re.compile(r'\s+[-–—|]\s*[^-–—|]*karaok[eé][^-–—|]*(?=\s+[-–—|])', re.IGNORECASE),
+    re.compile(r'\s+karaok[eé](?:\s+\S+)*$', re.IGNORECASE),
+    re.compile(r'\s+[-–—|]\s*' + KARAOKE_BRANDS + r'\b[^-–—|]*$', re.IGNORECASE),
+    re.compile(r'\s+[-–—|]\s*' + KARAOKE_BRANDS + r'\b[^-–—|]*(?=\s+[-–—|])', re.IGNORECASE),
+]
 
 # Separator between artist and title: " - ", " -- ", " – ", " — "
 DASH_SEP_RE = re.compile(r'\s+[-–—]{1,2}\s+')
@@ -111,8 +132,9 @@ DASH_SEP_RE = re.compile(r'\s+[-–—]{1,2}\s+')
 # Multiple spaces
 MULTI_SPACE_RE = re.compile(r'\s{2,}')
 
-# Characters not allowed in macOS filenames (or that cause trouble)
-BAD_CHARS_RE = re.compile(r'[/:"|\[\]]')
+# Characters not allowed in macOS filenames (or that cause trouble).
+# Note: square brackets are kept — we use them for the [Karaoke] suffix.
+BAD_CHARS_RE = re.compile(r'[/:"|]')
 
 # Common English words that happen to be short artist names — skip for substring matching
 # (they're fine for exact whole-string matching)
@@ -131,17 +153,8 @@ def normalize_for_matching(text):
 
 
 def build_artist_set():
-    """Load all known artist names from Apple Music library CSV."""
-    csv_path = os.path.join(PROJECT_ROOT, 'data', 'cleaned_music_library.csv')
-    df = pd.read_csv(csv_path)
-    artists = set()
-    for col in ['Artist', 'Album Artist']:
-        if col not in df.columns:
-            continue
-        for val in df[col].dropna().unique():
-            val = val.strip()
-            if val and val != 'Various Artists':
-                artists.add(val)
+    """Load all known artist names live from Apple Music via AppleScript."""
+    artists = {a.strip() for a in get_all_artists_from_app() if a and a.strip()}
     # Build a lookup: normalized -> original (prefer longer names)
     lookup = {}
     for a in artists:
@@ -236,9 +249,11 @@ def strip_at_handle(text):
     return re.sub(r'^@\S+\s+(?:x\s+)?', '', text).strip()
 
 
-# Tags that are our own output format — not "raw" YouTube tags
+# Tags that are our own output format — not "raw" YouTube tags.
+# Karaoke uses square brackets; Video/Lyrics Video use parentheses.
+# Also matches a trailing " (N)" duplicate-index suffix.
 OUR_OUTPUT_TAGS = re.compile(
-    r'\((?:Video|Karaoke|Lyrics Video)\)$'
+    r'(?:\s*\((?:Video|Lyrics Video)\)|\s*\[Karaoke\]|\s*\(\d+\))+$'
 )
 
 
@@ -263,13 +278,12 @@ def _has_raw_tags(stem):
 def already_well_formed(stem):
     """Check if a filename already matches our output format.
 
-    Matches: Artist - Title, Artist ft. X - Title, with optional trailing (Tag).
+    Matches: Artist - Title, Artist ft. X - Title, with optional trailing
+    (Tag) or [Tag] suffixes.
     """
-    # Pattern: something - something, optionally with ft. before the dash,
-    # and optionally ending with (Tag)
     return bool(re.match(
         r'^.+?(?:\s+ft\.\s+.+?)?\s+-\s+.+?'
-        r'(?:\s+\([^)]+\))*$',
+        r'(?:\s+(?:\([^)]+\)|\[[^\]]+\]))*$',
         stem,
     ))
 
@@ -296,6 +310,16 @@ def classify_and_parse(stem, artist_lookup):
 
     # Strip noise tags
     name = NOISE_TAGS.sub('', name)
+
+    # If this is a karaoke file, aggressively strip any remaining
+    # karaoke-related noise (bracketed groups, dash/pipe-separated tails, etc.)
+    # We re-add a clean [Karaoke] suffix at the end.
+    if is_karaoke:
+        for pat in KARAOKE_NOISE_PATTERNS:
+            prev = None
+            while prev != name:
+                prev = name
+                name = pat.sub('', name)
 
     # Strip karaoke-specific leading words like "Karaoké" before artist
     name = re.sub(r'^Karaok[eé]\s+', '', name, flags=re.IGNORECASE)
@@ -380,7 +404,7 @@ def classify_and_parse(stem, artist_lookup):
     if preserved_tags:
         suffix_parts.extend(preserved_tags)
     if is_karaoke:
-        suffix_parts.append('(Karaoke)')
+        suffix_parts.append('[Karaoke]')
     elif is_lyrics:
         suffix_parts.append('(Lyrics Video)')
     elif is_video:
@@ -447,7 +471,7 @@ def main():
         print(f"Error: {directory} is not a directory")
         sys.exit(1)
 
-    print("Loading Apple Music library for artist matching...")
+    print("Loading Apple Music library (live via AppleScript)...")
     artist_lookup = build_artist_set()
     print(f"Loaded {len(artist_lookup)} unique artist names.\n")
 

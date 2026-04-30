@@ -10,6 +10,26 @@ Comprehensive DJ music production and library management system for YDJ, encompa
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
 
+## Recent Session (2026-04-29)
+- ✅ **Karaoke filename support** in `downloads/rename_youtube.py`:
+  - Karaoke files now get `[Karaoke]` (square brackets) instead of `(Karaoke)` (parens) — visually distinguishes karaoke from video files
+  - `BAD_CHARS_RE` updated to preserve brackets (was stripping them); `OUR_OUTPUT_TAGS` regex now matches any combination of `(Video)`, `(Lyrics Video)`, `[Karaoke]`, and `(N)` index suffixes
+  - Aggressive karaoke-noise stripping: 7 patterns + branded channel list (KaraFun, Zoom Karaoke, Sing King, Musisi, Party Tyme) handle fullwidth brackets `【】`, embedded pipes, trailing dash segments, "Karaoke Version from..." suffixes
+  - Fullwidth char mappings added: `\u3010` `\u3011` `\u29f8` etc.
+  - Tested on 16 newly-downloaded karaoke files — all renamed cleanly
+- ✅ **Live Apple Music artist fetch** (replaces stale CSV dependency):
+  - New helper `get_all_artists_from_app()` in `common/apple_music.py` — bulk AppleScript property fetch with `---SEP---` separator, ~5s for 3,770 artists
+  - `rename_youtube.py` now calls this directly; `import pandas` removed
+  - Excludes "Various Artists" entries; canonicalizes case via longest-name preference per normalized key
+  - **Why:** user had not exported XML in months — CSV (Feb 13) was 2.5 months stale, missed all newly-added artists
+  - Legacy CSVs (`data/cleaned_music_library.csv`, `data/your_music_library.csv`) flagged for deletion (no remaining consumers)
+- ✅ **Tagging run on 37 newly-added tracks** via `/fill-missing-genres-years`:
+  - Research script (Source A duplicates + Source D MusicBrainz) wrote `/tmp/recommendations.json`
+  - Filled Source B (LLM knowledge) + Source C (web search) for all 37 tracks
+  - **Genre-mapper gotcha discovered:** `"new wave"` (no hyphen) does NOT match `"New-Wave"` canonical (with hyphen) via substring scoring — for synth-pop/new-wave tracks, use `"synth-pop"` as the source tag instead. Similarly `"dance"` maps to bare `"Dance"` not the compound `"Dance, Disco, R&B, Soul, Funk"`; use `"disco"` instead.
+  - Final consensus: **10 high / 24 medium / 3 low** confidence (improved from 6/21/10 after fixing tag choices)
+  - Interactive tagger launched in new Terminal window for keypress-based confirmation
+
 ## Recent Session (2026-04-28)
 - ✅ **Karaoke processing breakthrough** — replaced slow `geq` color-swap pipeline with luminance-LUT approach
   - New batch tool: `karaoke-processing/karaoke-process` (bash + ffmpeg), installed at `~/.local/bin/karaoke-process` (on PATH, callable from anywhere)
@@ -29,7 +49,9 @@ Comprehensive DJ music production and library management system for YDJ, encompa
   - No metadata embedding, no thumbnails (Apple Music tags set manually)
   - Downloads to `~/Movies/YouTube Downloads/`
 - ✅ **YouTube rename script** (`downloads/rename_youtube.py`):
-  - Uses Apple Music library (3,575 artists from CSV) to detect artist vs. title in ambiguous YouTube titles
+  - Reads artist list **live** from Apple Music via AppleScript (`get_all_artists_from_app()` in `common/apple_music.py`) — no CSV/XML dependency, ~5s for ~3,700 artists
+  - Karaoke files use `[Karaoke]` (square brackets); video files use `(Video)` / `(Lyrics Video)` (parens)
+  - Aggressive karaoke-noise stripping when filename contains "karaoke" anywhere (handles KaraFun, Zoom Karaoke, fullwidth brackets `【】`, embedded pipes, etc.)
   - Normalizes to `Artist - Title (Video/Karaoke/Lyrics Video).mp4` format
   - Handles: feat. normalization, fullwidth Unicode, @handles, karaoke prefix, noise tags
   - Idempotent (skips already well-formed files), duplicate-safe (adds index suffix)
@@ -176,9 +198,7 @@ ydj-music-studio/
 │   └── README.md
 │
 ├── data/                          # Working data files
-│   ├── exports/                   # Apple Music XML exports (gitignored)
-│   ├── cleaned_music_library.csv  # Legacy (can archive)
-│   └── your_music_library.csv     # Legacy (can archive)
+│   └── exports/                   # Apple Music XML exports (gitignored, optional)
 │
 ├── venv/                          # Python virtual environment (gitignored)
 ├── karaoke-processing/            # Karaoke video processing batch tool
