@@ -173,9 +173,82 @@ Recommended starting parameters per known karaoke channel. **Always run with `-f
 
 ### Party Tyme
 
-- **Layout:** typically white unsung + green sung on black — already close to the desired output format
-- **Recommendation:** likely *do not* run through this tool. The luminance LUT will invert green↔white because pure white (luminance 255) lands in the high band → mapped to green, while pure green (luminance ~75) lands in the mid band → mapped to white
-- **If you only need logo masking:** consider a plain `ffmpeg drawbox` pass instead, since the `-lo`/`-hi` LUT cannot be bypassed in this tool
+- **Layout:** white unsung + orange (or other lower-luminance color) sung on black — sung is *darker* than unsung, the inverse of the Musisi pattern
+- **Old guidance:** "Do not run through this tool. The LUT will invert sung↔unsung."
+- **Current guidance (v2 only):** Run `karaoke-process-v2` with `--invert-bands` to swap the LUT polarity. Suggested starting params: `-lo 40 -hi 200 --invert-bands`.
+- **Why it works:** with `--invert-bands` the LUT becomes black / green / white (low / mid / high). Orange sung text (luminance ~158) lands in the mid band → renders green. White unsung text (luminance 255) lands in the high band → renders white. Both bands map correctly.
+
+### ROSÉ & Bruno Mars - APT. (Party Tyme channel)
+
+- **Layout:** orange sung + bright white unsung on black, channel logo lower-left, ~5s splash intro card with title/artist
+- **Recommended (v2):** `karaoke-process-v2 "input.mp4" -lo 40 -hi 200 -z 10 --invert-bands --corners-only -t 0% -r 0% -b 30% -l 15% -splash 4.5`
+- **What that does:** keeps the first 4.5s splash unaltered; on the rest, masks only the bottom-left corner (large enough to cover the logo), zooms 10% for readability, applies the inverted LUT.
+
+## v2 Prototype: `karaoke-process-v2`
+
+A parallel script `karaoke-processing/karaoke-process-v2` adds new options on top of the v1 pipeline. Once integrated and tested across all channels, it will replace the v1 script.
+
+### `-splash SECONDS`
+
+Preserve the first N seconds of the source unaltered (no mask, no LUT), then concatenate the processed remainder.
+
+- Single-pass `concat` filter: no temp files, splash and body render at matching dims, then concatenate
+- Audio is stream-copied from the input — bit-perfect, never decoded/re-encoded
+- Accepts decimal values (e.g., `-splash 4.5`)
+- Validation: must be > 0 and < video duration
+- Ignored in still-frame mode (`-f`); a notice is printed
+- Filename token: ` splash-N`
+
+### `-z PERCENT`
+
+Apply a uniform centered zoom of N% to the processed frames. Useful for thinner-font channels where lyric readability suffers at native scale.
+
+- Implemented as `scale=iw*z:ih*z, crop=W:H` — output dims are unchanged (drop-in for FCP overlay layer)
+- Splash frames are NOT zoomed — only body content
+- Filter ordering inside the body: `mask → scale → crop → grayscale → LUT`. The LUT runs *after* the scale so the output stays deterministic 3-color (no gray/dark-green pixels at anti-aliased text edges)
+- Validation: must be > 0 and ≤ 100
+- Filename token: ` zoom-N`
+
+### `--invert-bands`
+
+Swap the mid and high output bands in the LUT:
+- Default: low → black, mid → white, high → green
+- With `--invert-bands`: low → black, mid → green, high → white
+
+Use when sung text is at *lower* luminance than unsung text (Party Tyme and similar channels). Rescues channels previously documented as incompatible with this tool.
+
+Filename token changes from `bwg-LO-HI` to `bgw-LO-HI` to indicate inverted band order.
+
+## Roadmap: `--outline N` (in development)
+
+Planned addition to give the lyric text a high-contrast halo for readability when blended onto music videos. Earlier attempts using `gblur+blend` and edge filters produced poor / inconsistent results.
+
+### Approach: stacked offset gray copies
+
+Build a two-ring halo by stamping the LUT'd text shape at multiple offsets in gray, then placing the colored text on top via alpha compositing (so the colored core is preserved cleanly with no blend-mode desaturation).
+
+For `--outline N`:
+- **Inner stamps** at offsets ±N in 8 compass directions (N, NE, E, SE, S, SW, W, NW), gray 80
+- **Outer stamps** at offsets ±2N in the same 8 directions, gray 220, painted *first* so the inner pass overwrites the inner part of it
+- **Original colored text** overlaid on top at (0, 0), with black keyed transparent
+
+Result: an N-wide dark inner ring (gasket against bright backgrounds) plus an N-wide bright outer ring (lifts text against dark backgrounds), total halo 2N wide. The "neon double-border" effect ensures legibility across any music video color underneath.
+
+### Filter chain integration
+
+Outline runs **after the LUT, before the encode**. Operating on the deterministic 3-color LUT output (rather than the raw frame) keeps the halo gray uniform and predictable.
+
+For splash interaction, the outline pass will live only inside the body branch of the `filter_complex`; splash frames stay unaltered.
+
+### Why this approach (vs. native ffmpeg outline filters)
+
+- **Deterministic:** every output pixel is one of `{0,0,0}`, `{80,80,80}`, `{220,220,220}`, or one of the LUT's three text colors — predictable for FCP blending
+- **Configurable:** ring colors (currently fixed at 80 / 220) can be exposed as flags later; thickness via single `N` parameter
+- **Fast:** only `overlay` and `colorkey` filters — no per-pixel expression evaluation
+
+### Known limitation
+
+At large N, the 8-stamp pattern produces a slight stair-step at the diagonal corners (gap of ~`N*(√2−1)` px in the radial direction). At `N≤4` it's invisible; above that, a 16-stamp pattern would be needed to smooth it.
 
 ## Tuning Workflow
 
@@ -194,7 +267,7 @@ The script auto-generates output names next to the source file.
 Examples:
 
 ```text
-Video:
+Video (v1):
 Song Title [outer box-5-15-15-5 bwg-40-80].mp4
 
 Still frame:
@@ -204,4 +277,7 @@ Song Title [frame-20 processed-outer box-20-20-20-20 bwg-40-64].png
 Corner-only still frame:
 Song Title [frame-20 masked-corners box-5-20-20-5].png
 Song Title [frame-20 processed-corners box-5-20-20-5 bwg-40-64].png
+
+v2 with inverted LUT, zoom, and splash:
+Song Title [corners box-5-30-15-5 bgw-40-200 zoom-10 splash-4_5].mp4
 ```

@@ -31,7 +31,7 @@ A comprehensive DJ music production and library management system encompassing t
 - YouTube media processing (MKV→MP4, Opus→AAC conversion)
 - YouTube video downloading via yt-dlp (h264/1080p, Safari cookies for YouTube Premium)
 - YouTube download renaming (`rename_youtube.py` — artist/title/type normalization using Apple Music library)
-- Karaoke video enhancement for FCP overlay blending (luminance-LUT remap + edge masking via ffmpeg; `karaoke-process` batch tool)
+- Karaoke video enhancement for FCP overlay blending (luminance-LUT remap + edge masking via ffmpeg; `karaoke-process` v1 + `karaoke-process-v2` prototype with splash preservation, zoom, inverted band polarity, and a planned outline halo)
 - File renaming based on metadata tags
 - Safe read-only Apple Music integration (initial phase)
 
@@ -98,6 +98,8 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Targeted web search (Source C) for year-only inconsistencies to avoid MusicBrainz reissue years
 - ✅ Live AppleScript artist fetch (`get_all_artists_from_app()`) — eliminates stale CSV dependency in `rename_youtube.py`
 - ✅ Karaoke filename support (`[Karaoke]` brackets) + aggressive noise stripping for branded karaoke channels
+- ✅ Karaoke v2 prototype (`karaoke-process-v2`): `-splash` (preserve intro), `-z` (zoom), `--invert-bands` (rescue Party Tyme-style channels). Validated on ROSÉ & Bruno Mars - APT.
+- 🚧 Karaoke `--outline N` halo (stacked-offset gray copies, 8-compass directions, alpha-composited) — design validated on still frame, not yet integrated into v2 script
 - 🚧 Audit library metadata quality (missing BPMs, keys)
 - BPM detection and tagging for tracks missing tempo data
 
@@ -157,6 +159,25 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Seamless integration: `maturin develop --release` to build, same `mixer.py` entry point
 
 ## Key Decisions and Rationale
+
+### Decision: Karaoke v2 Enhancements (splash, zoom, invert-bands, outline)
+**Context:** The v1 luminance-LUT pipeline (decision below) works on Musisi-style channels but had three gaps surfacing during multi-channel testing: (1) channel splash screens (artist/title intro cards) were getting LUT-quantized along with the rest of the video, destroying their original look; (2) thinner-font channels were hard to read at native scale on a music-video background; (3) channels like Party Tyme have *brighter* unsung text than sung text, so the v1 LUT polarity (`black / white / green` low→high) maps both into the wrong bands and was documented as "do not run".
+
+**Decision:** Build a parallel v2 script (`karaoke-process-v2`) that adds:
+- `-splash SECONDS` — single-pass `concat` filter inside `filter_complex`. Splash branch trims `[0,N)` and emits unaltered; body branch trims `[N,end]` and runs the mask+LUT chain; both concat. Audio stream-copied from the input → bit-perfect, no AAC frame-boundary issues. Accepts decimals.
+- `-z PERCENT` — `scale=iw*z:ih*z, crop=W:H` after the mask, before the grayscale+LUT. Output dims unchanged. Filter ordering matters: LUT runs *after* the scale, so the output stays deterministic 3-color (no anti-aliased gray pixels at scaled edges).
+- `--invert-bands` — flips the LUT polarity to `black / green / white` (low→high). Rescues Party Tyme and similar channels. Filename token changes `bwg-` → `bgw-` to flag the swap.
+- `--outline N` (in design, not yet integrated) — stacked-offset gray copies of the LUT'd text shape in 8 compass directions: inner stamps at ±N (gray 80), outer stamps at ±2N (gray 220), composited via alpha so the colored text core is preserved. Produces a "neon double-ring" halo: dark inner gasket + bright outer ring, total 2N px wide. Earlier attempts at outlines via `gblur+blend` and edge filters all looked poor; the stacked-copy approach is deterministic and configurable.
+
+**Rationale:**
+- Each option addresses a real channel-coverage gap, not speculative
+- `-splash` and `-z` slot cleanly into the existing pipeline; `--invert-bands` is a tiny LUT swap; `--outline` reuses the same `overlay`/`colorkey` primitives we already trust
+- Validated on ROSÉ & Bruno Mars - APT (Party Tyme channel): all three integrated options produce the expected output (orange→green, white→white, splash unaltered, 10% zoom, audio bit-perfect)
+- v1 left untouched at `~/.local/bin/karaoke-process` until v2 is fully validated; promotion is a copy + path update
+
+**Tradeoff:** v2 has more parameters (we now have `-t -b -l -r -lo -hi -splash -z -f --corners-only --invert-bands` and soon `--outline`). The CLI surface is broader but each flag is independent and the help text covers usage.
+
+**Date:** 2026-05-02
 
 ### Decision: Luminance-LUT Karaoke Pipeline (replaces `geq` color-match)
 **Context:** The original karaoke processing pipeline used ffmpeg's `geq` filter to do per-pixel color detection (orange → green) plus `gblur+blend` for glow. It worked visually but ran at ~0.1x realtime on 1080p — a 4-minute song took ~40 minutes to process.

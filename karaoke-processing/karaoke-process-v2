@@ -1,0 +1,349 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  karaoke-process-v2 INPUT_FILE [options]
+
+Description:
+  v2 of karaoke-process: same luminance-LUT pipeline plus an optional
+  splash-screen preservation feature. The first N seconds of the video
+  can be passed through completely unaltered (no mask, no LUT) and
+  concatenated back to the processed remainder in a single ffmpeg pass.
+  Audio is stream-copied from the original, untouched.
+
+  Pipeline (per frame outside the splash window):
+    1. Mask part of the frame with black
+    2. Convert remaining image to grayscale
+    3. Remap luminance bands to fixed colors:
+         - black  = 0,0,0
+         - white  = 255,255,255
+         - green  = 0,200,0
+
+Required arguments:
+  INPUT_FILE   Path to the input video file
+
+Optional arguments:
+  -t TOP%      Top margin to mask, as percent of height
+               Default: 5%
+  -b BOTTOM%   Bottom margin to mask, as percent of height
+               Default: 15%
+  -l LEFT%     Left margin to mask, as percent of width
+               Default: 15%
+  -r RIGHT%    Right margin to mask, as percent of width
+               Default: 5%
+  -lo LOW      Lower threshold (0-255)
+               Default: 40
+  -hi HIGH     Upper threshold (0-255)
+               Default: 80
+  -splash SECONDS
+               Preserve the first N seconds of the video unaltered (no
+               mask, no LUT), then concatenate the processed remainder.
+               Must be > 0 and < video duration.
+               Ignored in still-frame mode (-f).
+  -z PERCENT   Apply a uniform zoom (centered) of PERCENT% to the
+               processed frames, before the LUT. Output dimensions are
+               unchanged (scale up, then center-crop back). Splash
+               frames are NOT zoomed. Must be > 0 and <= 100.
+  -f SECONDS   Extract and process only a still frame at this timestamp
+  --corners-only
+               Black out only the corners implied by the margins instead
+               of blacking out full top/bottom/left/right strips
+  --invert-bands
+               Swap the mid and high output colors. Use this when the
+               sung text is at LOWER luminance than the unsung text
+               (e.g., orange sung on bright white unsung).
+                 Default       : black / white / green   (low / mid / high)
+                 --invert-bands: black / green / white   (low / mid / high)
+  -h           Show this help
+
+Examples:
+  karaoke-process-v2 "/path/video.mp4"
+  karaoke-process-v2 "/path/video.mp4" -splash 5
+  karaoke-process-v2 "/path/video.mp4" -splash 5 -z 10 -lo 40 -hi 100
+  karaoke-process-v2 "/path/video.mp4" -lo 40 -hi 200 --invert-bands
+  karaoke-process-v2 "/path/video.mp4" -t 20% -b 20% -l 20% -r 20% -lo 24 -hi 80
+  karaoke-process-v2 "/path/video.mp4" -f 90
+  karaoke-process-v2 "/path/video.mp4" -b 20% -l 20% --corners-only -f 90
+EOF
+}
+
+die() {
+  echo "Error: $*" >&2
+  exit 1
+}
+
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
+}
+
+parse_percent() {
+  local raw="$1"
+  [[ "$raw" =~ ^([0-9]+([.][0-9]+)?)%$ ]] || die "Invalid percentage: $raw"
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+validate_threshold() {
+  local name="$1"
+  local value="$2"
+  [[ "$value" =~ ^[0-9]+$ ]] || die "$name must be an integer: $value"
+  (( value >= 0 && value <= 255 )) || die "$name must be between 0 and 255: $value"
+}
+
+percent_to_px() {
+  local percent="$1"
+  local dim="$2"
+  awk -v p="$percent" -v d="$dim" 'BEGIN { printf "%d\n", int((p * d / 100) + 0.5) }'
+}
+
+basename_no_ext() {
+  local path="$1"
+  local name
+  name="$(basename "$path")"
+  printf '%s\n' "${name%.*}"
+}
+
+escape_label_percent() {
+  local raw="$1"
+  printf '%s\n' "${raw%%%}"
+}
+
+require_cmd ffmpeg
+require_cmd ffprobe
+require_cmd awk
+
+if (( $# == 0 )); then
+  usage
+  exit 1
+fi
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+input_file="$1"
+shift
+
+[[ -f "$input_file" ]] || die "Input file not found: $input_file"
+
+top_raw="5%"
+bottom_raw="15%"
+left_raw="15%"
+right_raw="5%"
+low_thr="40"
+high_thr="80"
+frame_seconds=""
+splash_seconds=""
+zoom_pct=""
+corners_only="false"
+invert_bands="false"
+
+while (( $# > 0 )); do
+  case "$1" in
+    -t)
+      (( $# >= 2 )) || die "Missing value for -t"
+      top_raw="$2"
+      shift 2
+      ;;
+    -b)
+      (( $# >= 2 )) || die "Missing value for -b"
+      bottom_raw="$2"
+      shift 2
+      ;;
+    -l)
+      (( $# >= 2 )) || die "Missing value for -l"
+      left_raw="$2"
+      shift 2
+      ;;
+    -r)
+      (( $# >= 2 )) || die "Missing value for -r"
+      right_raw="$2"
+      shift 2
+      ;;
+    -lo)
+      (( $# >= 2 )) || die "Missing value for -lo"
+      low_thr="$2"
+      shift 2
+      ;;
+    -hi)
+      (( $# >= 2 )) || die "Missing value for -hi"
+      high_thr="$2"
+      shift 2
+      ;;
+    -f)
+      (( $# >= 2 )) || die "Missing value for -f"
+      frame_seconds="$2"
+      shift 2
+      ;;
+    -splash)
+      (( $# >= 2 )) || die "Missing value for -splash"
+      splash_seconds="$2"
+      shift 2
+      ;;
+    -z)
+      (( $# >= 2 )) || die "Missing value for -z"
+      zoom_pct="$2"
+      shift 2
+      ;;
+    --corners-only)
+      corners_only="true"
+      shift
+      ;;
+    --invert-bands)
+      invert_bands="true"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "Unknown argument: $1"
+      ;;
+  esac
+done
+
+top_mask_pct="$(parse_percent "$top_raw")"
+bottom_mask_pct="$(parse_percent "$bottom_raw")"
+left_mask_pct="$(parse_percent "$left_raw")"
+right_mask_pct="$(parse_percent "$right_raw")"
+
+validate_threshold "Lower threshold" "$low_thr"
+validate_threshold "Upper threshold" "$high_thr"
+(( low_thr < high_thr )) || die "Lower threshold must be less than upper threshold"
+
+if [[ -n "$frame_seconds" ]]; then
+  [[ "$frame_seconds" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "-f must be a non-negative number of seconds"
+fi
+
+if [[ -n "$splash_seconds" ]]; then
+  [[ "$splash_seconds" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "-splash must be a non-negative number of seconds"
+  awk -v s="$splash_seconds" 'BEGIN { exit !(s > 0) }' \
+    || die "-splash must be greater than 0 (omit -splash to process the whole video)"
+fi
+
+if [[ -n "$frame_seconds" && -n "$splash_seconds" ]]; then
+  echo "Note: -splash ignored in still-frame mode (-f)." >&2
+  splash_seconds=""
+fi
+
+if [[ -n "$zoom_pct" ]]; then
+  [[ "$zoom_pct" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "-z must be a non-negative number (percent)"
+  awk -v z="$zoom_pct" 'BEGIN { exit !(z > 0 && z <= 100) }' \
+    || die "-z must be greater than 0 and at most 100 (percent)"
+fi
+
+width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$input_file")"
+height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$input_file")"
+
+[[ -n "$width" && -n "$height" ]] || die "Could not determine video dimensions"
+
+if [[ -n "$splash_seconds" ]]; then
+  duration="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$input_file")"
+  [[ -n "$duration" ]] || die "Could not determine video duration"
+  awk -v s="$splash_seconds" -v d="$duration" 'BEGIN { exit !(s < d) }' \
+    || die "-splash ($splash_seconds) must be less than video duration ($duration)"
+fi
+
+left_mask_px="$(percent_to_px "$left_mask_pct" "$width")"
+right_mask_px="$(percent_to_px "$right_mask_pct" "$width")"
+top_mask_px="$(percent_to_px "$top_mask_pct" "$height")"
+bottom_mask_px="$(percent_to_px "$bottom_mask_pct" "$height")"
+
+(( left_mask_px >= 0 && left_mask_px <= width )) || die "Computed left margin is out of range"
+(( right_mask_px >= 0 && right_mask_px <= width )) || die "Computed right margin is out of range"
+(( top_mask_px >= 0 && top_mask_px <= height )) || die "Computed top margin is out of range"
+(( bottom_mask_px >= 0 && bottom_mask_px <= height )) || die "Computed bottom margin is out of range"
+(( left_mask_px + right_mask_px < width )) || die "Left + right margins must leave visible width"
+(( top_mask_px + bottom_mask_px < height )) || die "Top + bottom margins must leave visible height"
+
+left_px="$left_mask_px"
+right_px=$(( width - right_mask_px ))
+top_px="$top_mask_px"
+bottom_px=$(( height - bottom_mask_px ))
+
+base_name="$(basename_no_ext "$input_file")"
+input_dir="$(cd "$(dirname "$input_file")" && pwd)"
+top_label="$(escape_label_percent "$top_raw")"
+bottom_label="$(escape_label_percent "$bottom_raw")"
+left_label="$(escape_label_percent "$left_raw")"
+right_label="$(escape_label_percent "$right_raw")"
+box_label="box-${top_label}-${bottom_label}-${left_label}-${right_label}"
+if [[ "$invert_bands" == "true" ]]; then
+  thr_label="bgw-${low_thr}-${high_thr}"
+  mid_r="0";   mid_g="200"; mid_b="0"
+  hi_r="255";  hi_g="255";  hi_b="255"
+else
+  thr_label="bwg-${low_thr}-${high_thr}"
+  mid_r="255"; mid_g="255"; mid_b="255"
+  hi_r="0";    hi_g="200";  hi_b="0"
+fi
+
+zoom_filter_segment=""
+zoom_label_segment=""
+if [[ -n "$zoom_pct" ]]; then
+  zoom_factor="$(awk -v z="$zoom_pct" 'BEGIN { printf "%.6f", 1 + z/100 }')"
+  zoom_filter_segment=",scale=iw*${zoom_factor}:ih*${zoom_factor},crop=${width}:${height}"
+  zoom_pct_label="${zoom_pct//./_}"
+  zoom_label_segment=" zoom-${zoom_pct_label}"
+fi
+
+splash_label_segment=""
+if [[ -n "$splash_seconds" ]]; then
+  splash_label="${splash_seconds//./_}"
+  splash_label_segment=" splash-${splash_label}"
+fi
+
+if [[ "$corners_only" == "true" ]]; then
+  mask_filter="drawbox=x=0:y=0:w=${left_px}:h=${top_px}:color=black:t=fill,drawbox=x=${right_px}:y=0:w=iw-${right_px}:h=${top_px}:color=black:t=fill,drawbox=x=0:y=${bottom_px}:w=${left_px}:h=ih-${bottom_px}:color=black:t=fill,drawbox=x=${right_px}:y=${bottom_px}:w=iw-${right_px}:h=ih-${bottom_px}:color=black:t=fill"
+  box_mode_label="corners"
+else
+  mask_filter="drawbox=x=0:y=0:w=iw:h=${top_px}:color=black:t=fill,drawbox=x=0:y=${bottom_px}:w=iw:h=ih-${bottom_px}:color=black:t=fill,drawbox=x=0:y=${top_px}:w=${left_px}:h=${bottom_px}-${top_px}:color=black:t=fill,drawbox=x=${right_px}:y=${top_px}:w=iw-${right_px}:h=${bottom_px}-${top_px}:color=black:t=fill"
+  box_mode_label="outer"
+fi
+masked_filter_zoomed="${mask_filter}${zoom_filter_segment}"
+lut_r="if(lt(val,${low_thr}),0,if(lt(val,${high_thr}),${mid_r},${hi_r}))"
+lut_g="if(lt(val,${low_thr}),0,if(lt(val,${high_thr}),${mid_g},${hi_g}))"
+lut_b="if(lt(val,${low_thr}),0,if(lt(val,${high_thr}),${mid_b},${hi_b}))"
+process_filter="${masked_filter_zoomed},hue=s=0,lutrgb=r='${lut_r}':g='${lut_g}':b='${lut_b}'"
+
+if [[ -n "$frame_seconds" ]]; then
+  frame_label="${frame_seconds//./_}"
+  masked_png="${input_dir}/${base_name} [frame-${frame_label} masked-${box_mode_label} ${box_label}${zoom_label_segment}].png"
+  processed_png="${input_dir}/${base_name} [frame-${frame_label} processed-${box_mode_label} ${box_label}${zoom_label_segment} ${thr_label}].png"
+
+  ffmpeg -y -ss "$frame_seconds" -i "$input_file" \
+    -frames:v 1 -vf "$masked_filter_zoomed" -update 1 "$masked_png"
+
+  ffmpeg -y -ss "$frame_seconds" -i "$input_file" \
+    -frames:v 1 -vf "$process_filter" -update 1 "$processed_png"
+
+  printf 'Created:\n%s\n%s\n' "$masked_png" "$processed_png"
+elif [[ -n "$splash_seconds" ]]; then
+  output_video="${input_dir}/${base_name} [${box_mode_label} ${box_label} ${thr_label}${zoom_label_segment}${splash_label_segment}].mp4"
+
+  filter_complex="[0:v]trim=start=0:end=${splash_seconds},setpts=PTS-STARTPTS[splash];"
+  filter_complex+="[0:v]trim=start=${splash_seconds},setpts=PTS-STARTPTS,${process_filter}[body];"
+  filter_complex+="[splash][body]concat=n=2:v=1:a=0[vout]"
+
+  ffmpeg -y -i "$input_file" \
+    -filter_complex "$filter_complex" \
+    -map "[vout]" -map 0:a:0 -map_chapters -1 -dn \
+    -c:v libx264 -pix_fmt yuv420p -crf 18 -preset medium -c:a copy \
+    "$output_video"
+
+  printf 'Created:\n%s\n' "$output_video"
+else
+  output_video="${input_dir}/${base_name} [${box_mode_label} ${box_label} ${thr_label}${zoom_label_segment}].mp4"
+
+  ffmpeg -y -i "$input_file" \
+    -map 0:v:0 -map 0:a:0 -map_chapters -1 -dn \
+    -vf "$process_filter" \
+    -c:v libx264 -pix_fmt yuv420p -crf 18 -preset medium -c:a copy \
+    "$output_video"
+
+  printf 'Created:\n%s\n' "$output_video"
+fi

@@ -4,11 +4,22 @@
 Comprehensive DJ music production and library management system for YDJ, encompassing playlist optimization (harmonic mixing), Apple Music library metadata management, and YouTube media processing.
 
 ## Current Priority
-**Karaoke video processing pipeline**: ✅ Breakthrough achieved. The slow `geq` color-swap approach was replaced by a fast luminance-LUT pipeline implemented in `karaoke-processing/karaoke-process` (installed globally at `~/.local/bin/karaoke-process`). Three luminance bands map to fixed RGB outputs (black / white / green), with configurable edge masks and a still-frame tuning mode. Runs near realtime on 1080p. Next: validate overlay blending in Final Cut Pro across multiple karaoke channels.
+**Karaoke video processing pipeline (v2 in progress)**: prototype `karaoke-processing/karaoke-process-v2` adds three new options on top of the v1 luminance-LUT pipeline: `-splash SECONDS` (preserve intro splash unaltered), `-z PERCENT` (uniform centered zoom for readability), and `--invert-bands` (swap mid/high LUT bands — rescues Party Tyme and APT-style channels where unsung text is brighter than sung text). A fourth option `--outline N` is in design: stacks 8 offset gray copies of the LUT'd text at offsets N and 2N to produce a two-ring "neon" halo (dark inner + bright outer), composited via alpha so the colored text core stays clean. Once outline is integrated and validated, v2 replaces v1 (which currently lives globally at `~/.local/bin/karaoke-process`).
 
 ## Completed Phases
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
+
+## Recent Session (2026-05-02)
+- ✅ **`karaoke-process-v2` prototype**: parallel script alongside the original `karaoke-process` (kept untouched). All v1 functionality preserved.
+- ✅ **`-splash SECONDS`**: single-pass `concat` filter inside `filter_complex` — splash branch trims `[0:v]` to `[0,N)`, body branch trims `[N,end]` and runs the mask+LUT chain, then both concat. Audio is stream-copied (`-c:a copy -map 0:a:0`) so it's bit-perfect, no AAC frame-boundary issues. Accepts decimals. Verified on ROSÉ & Bruno Mars - APT (5s splash → splash-5; also tested at 4.5s).
+- ✅ **`-z PERCENT`**: `scale=iw*z:ih*z, crop=W:H` after the mask, before the grayscale+LUT. Output dims unchanged. Verified that filter ordering matters — running the LUT *after* the scale keeps the output deterministic (3 colors), running it before would produce gray/dark-green pixels at scaled text edges.
+- ✅ **`--invert-bands`**: swaps mid/high outputs in the LUT — `< lo → black`, `lo ≤ val < hi → green`, `≥ hi → white`. Rescues Party Tyme-style channels. Filename token changes from `bwg-LO-HI` to `bgw-LO-HI`. Validated on APT (`-lo 40 -hi 200 --invert-bands`): orange sung renders green, white unsung renders white.
+- ✅ **`-splash` × `-f` interaction**: in still-frame mode, `-splash` is ignored with a notice (still-frame is for tuning, not segment-aware).
+- 🚧 **`--outline N` in design**: stacked-offset gray copies for a neon-style two-ring halo. Inner stamps at ±N (gray 80), outer stamps at ±2N (gray 220), 8 compass directions, alpha-composited so the colored text core is preserved. Prototyped via ad-hoc `ffmpeg filter_complex` on a single frame — visually validated. Filter-chain slot: after LUT, before encode. Splash branch stays unaltered. Not yet integrated into v2 script — that's the next step.
+- ✅ **APT (Party Tyme) added as channel reference** in `karaoke-process.md`. Old "do not run" guidance for Party Tyme replaced with `--invert-bands` recipe.
+- ✅ **Working folder relocated**: ~2GB karaoke-production assets moved into `docs/karaoke-production/`. `*.mp4` was already gitignored, so videos won't sync.
+- 📌 **Test artifacts**: outline experiment PNGs and APT v2 test outputs live directly under `docs/` (per project convention "save test images/videos under docs, not /tmp").
 
 ## Recent Session (2026-04-29)
 - ✅ **Karaoke filename support** in `downloads/rename_youtube.py`:
@@ -236,8 +247,9 @@ ydj-music-studio/
 - `common/genres.json` - Canonical 31-genre taxonomy
 - `downloads/rename_youtube.py` - YouTube download renamer (uses Apple Music artist list for disambiguation)
 - `karaoke-processing/karaoke-process` - Bash batch tool for karaoke video prep (luminance-LUT pipeline; mirrored to `~/.local/bin/karaoke-process`)
-- `karaoke-processing/karaoke-process.md` - Authoritative reference: goal/rationale, options, defaults, still-frame mode, output naming, channel-specific starting points (Musisi/Sing King/Party Tyme), tuning workflow
-- `~/.local/bin/karaoke-process` - Installed copy of the batch tool (PATH-accessible from anywhere)
+- `karaoke-processing/karaoke-process-v2` - Prototype with new options: `-splash`, `-z`, `--invert-bands` (and `--outline` planned). Will replace v1 once outline is integrated and validated.
+- `karaoke-processing/karaoke-process.md` - Authoritative reference: goal/rationale, options, defaults, still-frame mode, output naming, channel-specific starting points (Musisi/Sing King/Party Tyme/APT), v2 prototype section, `--outline` roadmap, tuning workflow
+- `~/.local/bin/karaoke-process` - Installed copy of v1 (PATH-accessible from anywhere); v2 is run from the project tree until promoted
 - `~/.config/yt-dlp/config` - yt-dlp configuration (h264/1080p, no metadata, Safari cookies)
 
 ## Run Commands / Environment
