@@ -57,6 +57,11 @@ Optional arguments:
                (e.g., orange sung on bright white unsung).
                  Default       : black / white / green   (low / mid / high)
                  --invert-bands: black / green / white   (low / mid / high)
+  --outline N  Add a two-ring gray halo around the LUT'd text. Inner stamps
+               at offsets +/-N (gray 80), outer stamps at offsets +/-2N
+               (gray 220), in 8 compass directions, alpha-composited so
+               the colored text core stays clean. Set N=0 to disable.
+               Default: 2. Maximum: 20.
   -h           Show this help
 
 Examples:
@@ -64,6 +69,8 @@ Examples:
   karaoke-process-v2 "/path/video.mp4" -splash 5
   karaoke-process-v2 "/path/video.mp4" -splash 5 -z 10 -lo 40 -hi 100
   karaoke-process-v2 "/path/video.mp4" -lo 40 -hi 200 --invert-bands
+  karaoke-process-v2 "/path/video.mp4" --outline 3
+  karaoke-process-v2 "/path/video.mp4" --outline 0
   karaoke-process-v2 "/path/video.mp4" -t 20% -b 20% -l 20% -r 20% -lo 24 -hi 80
   karaoke-process-v2 "/path/video.mp4" -f 90
   karaoke-process-v2 "/path/video.mp4" -b 20% -l 20% --corners-only -f 90
@@ -140,6 +147,7 @@ splash_seconds=""
 zoom_pct=""
 corners_only="false"
 invert_bands="false"
+outline_n="2"
 
 while (( $# > 0 )); do
   case "$1" in
@@ -196,6 +204,11 @@ while (( $# > 0 )); do
       invert_bands="true"
       shift
       ;;
+    --outline)
+      (( $# >= 2 )) || die "Missing value for --outline"
+      outline_n="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -235,6 +248,9 @@ if [[ -n "$zoom_pct" ]]; then
   awk -v z="$zoom_pct" 'BEGIN { exit !(z > 0 && z <= 100) }' \
     || die "-z must be greater than 0 and at most 100 (percent)"
 fi
+
+[[ "$outline_n" =~ ^[0-9]+$ ]] || die "--outline must be a non-negative integer"
+(( outline_n >= 0 && outline_n <= 20 )) || die "--outline must be between 0 and 20"
 
 width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$input_file")"
 height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$input_file")"
@@ -310,24 +326,69 @@ lut_g="if(lt(val,${low_thr}),0,if(lt(val,${high_thr}),${mid_g},${hi_g}))"
 lut_b="if(lt(val,${low_thr}),0,if(lt(val,${high_thr}),${mid_b},${hi_b}))"
 process_filter="${masked_filter_zoomed},hue=s=0,lutrgb=r='${lut_r}':g='${lut_g}':b='${lut_b}'"
 
+outline_chain=""
+outline_label_segment=""
+if (( outline_n > 0 )); then
+  outer_off=$(( 2 * outline_n ))
+  inner_off="$outline_n"
+  outline_label_segment=" outline-${outline_n}"
+
+  outline_chain="[lut]split=3[ol_bg_src][ol_orig_src][ol_gray_src];"
+  outline_chain+="[ol_bg_src]lutrgb=r=0:g=0:b=0[ol_bg];"
+  outline_chain+="[ol_orig_src]format=rgba,colorkey=color=0x000000:similarity=0.01:blend=0[ol_orig_keyed];"
+  outline_chain+="[ol_gray_src]split=2[ol_outer_src][ol_inner_src];"
+  outline_chain+="[ol_outer_src]hue=s=0,lutrgb=r='if(gt(val,1),220,0)':g='if(gt(val,1),220,0)':b='if(gt(val,1),220,0)',format=rgba,colorkey=color=0x000000:similarity=0.01:blend=0,split=8[oN][oNE][oE][oSE][oS][oSW][oW][oNW];"
+  outline_chain+="[ol_inner_src]hue=s=0,lutrgb=r='if(gt(val,1),80,0)':g='if(gt(val,1),80,0)':b='if(gt(val,1),80,0)',format=rgba,colorkey=color=0x000000:similarity=0.01:blend=0,split=8[iN][iNE][iE][iSE][iS][iSW][iW][iNW];"
+  outline_chain+="[ol_bg][oN]overlay=x=0:y=-${outer_off}[ols1];"
+  outline_chain+="[ols1][oNE]overlay=x=${outer_off}:y=-${outer_off}[ols2];"
+  outline_chain+="[ols2][oE]overlay=x=${outer_off}:y=0[ols3];"
+  outline_chain+="[ols3][oSE]overlay=x=${outer_off}:y=${outer_off}[ols4];"
+  outline_chain+="[ols4][oS]overlay=x=0:y=${outer_off}[ols5];"
+  outline_chain+="[ols5][oSW]overlay=x=-${outer_off}:y=${outer_off}[ols6];"
+  outline_chain+="[ols6][oW]overlay=x=-${outer_off}:y=0[ols7];"
+  outline_chain+="[ols7][oNW]overlay=x=-${outer_off}:y=-${outer_off}[ols8];"
+  outline_chain+="[ols8][iN]overlay=x=0:y=-${inner_off}[ols9];"
+  outline_chain+="[ols9][iNE]overlay=x=${inner_off}:y=-${inner_off}[ols10];"
+  outline_chain+="[ols10][iE]overlay=x=${inner_off}:y=0[ols11];"
+  outline_chain+="[ols11][iSE]overlay=x=${inner_off}:y=${inner_off}[ols12];"
+  outline_chain+="[ols12][iS]overlay=x=0:y=${inner_off}[ols13];"
+  outline_chain+="[ols13][iSW]overlay=x=-${inner_off}:y=${inner_off}[ols14];"
+  outline_chain+="[ols14][iW]overlay=x=-${inner_off}:y=0[ols15];"
+  outline_chain+="[ols15][iNW]overlay=x=-${inner_off}:y=-${inner_off}[ols16];"
+  outline_chain+="[ols16][ol_orig_keyed]overlay=x=0:y=0[outlined]"
+fi
+
 if [[ -n "$frame_seconds" ]]; then
   frame_label="${frame_seconds//./_}"
   masked_png="${input_dir}/${base_name} [frame-${frame_label} masked-${box_mode_label} ${box_label}${zoom_label_segment}].png"
-  processed_png="${input_dir}/${base_name} [frame-${frame_label} processed-${box_mode_label} ${box_label}${zoom_label_segment} ${thr_label}].png"
+  processed_png="${input_dir}/${base_name} [frame-${frame_label} processed-${box_mode_label} ${box_label}${zoom_label_segment}${outline_label_segment} ${thr_label}].png"
 
   ffmpeg -y -ss "$frame_seconds" -i "$input_file" \
     -frames:v 1 -vf "$masked_filter_zoomed" -update 1 "$masked_png"
 
-  ffmpeg -y -ss "$frame_seconds" -i "$input_file" \
-    -frames:v 1 -vf "$process_filter" -update 1 "$processed_png"
+  if [[ -n "$outline_chain" ]]; then
+    ffmpeg -y -ss "$frame_seconds" -i "$input_file" \
+      -filter_complex "[0:v]${process_filter}[lut];${outline_chain}" \
+      -map "[outlined]" -frames:v 1 -update 1 "$processed_png"
+  else
+    ffmpeg -y -ss "$frame_seconds" -i "$input_file" \
+      -frames:v 1 -vf "$process_filter" -update 1 "$processed_png"
+  fi
 
   printf 'Created:\n%s\n%s\n' "$masked_png" "$processed_png"
 elif [[ -n "$splash_seconds" ]]; then
-  output_video="${input_dir}/${base_name} [${box_mode_label} ${box_label} ${thr_label}${zoom_label_segment}${splash_label_segment}].mp4"
+  output_video="${input_dir}/${base_name} [${box_mode_label} ${box_label} ${thr_label}${zoom_label_segment}${outline_label_segment}${splash_label_segment}].mp4"
 
-  filter_complex="[0:v]trim=start=0:end=${splash_seconds},setpts=PTS-STARTPTS[splash];"
-  filter_complex+="[0:v]trim=start=${splash_seconds},setpts=PTS-STARTPTS,${process_filter}[body];"
-  filter_complex+="[splash][body]concat=n=2:v=1:a=0[vout]"
+  if [[ -n "$outline_chain" ]]; then
+    filter_complex="[0:v]trim=start=0:end=${splash_seconds},setpts=PTS-STARTPTS[splash];"
+    filter_complex+="[0:v]trim=start=${splash_seconds},setpts=PTS-STARTPTS,${process_filter}[lut];"
+    filter_complex+="${outline_chain};"
+    filter_complex+="[splash][outlined]concat=n=2:v=1:a=0[vout]"
+  else
+    filter_complex="[0:v]trim=start=0:end=${splash_seconds},setpts=PTS-STARTPTS[splash];"
+    filter_complex+="[0:v]trim=start=${splash_seconds},setpts=PTS-STARTPTS,${process_filter}[body];"
+    filter_complex+="[splash][body]concat=n=2:v=1:a=0[vout]"
+  fi
 
   ffmpeg -y -i "$input_file" \
     -filter_complex "$filter_complex" \
@@ -337,13 +398,21 @@ elif [[ -n "$splash_seconds" ]]; then
 
   printf 'Created:\n%s\n' "$output_video"
 else
-  output_video="${input_dir}/${base_name} [${box_mode_label} ${box_label} ${thr_label}${zoom_label_segment}].mp4"
+  output_video="${input_dir}/${base_name} [${box_mode_label} ${box_label} ${thr_label}${zoom_label_segment}${outline_label_segment}].mp4"
 
-  ffmpeg -y -i "$input_file" \
-    -map 0:v:0 -map 0:a:0 -map_chapters -1 -dn \
-    -vf "$process_filter" \
-    -c:v libx264 -pix_fmt yuv420p -crf 18 -preset medium -c:a copy \
-    "$output_video"
+  if [[ -n "$outline_chain" ]]; then
+    ffmpeg -y -i "$input_file" \
+      -filter_complex "[0:v]${process_filter}[lut];${outline_chain}" \
+      -map "[outlined]" -map 0:a:0 -map_chapters -1 -dn \
+      -c:v libx264 -pix_fmt yuv420p -crf 18 -preset medium -c:a copy \
+      "$output_video"
+  else
+    ffmpeg -y -i "$input_file" \
+      -map 0:v:0 -map 0:a:0 -map_chapters -1 -dn \
+      -vf "$process_filter" \
+      -c:v libx264 -pix_fmt yuv420p -crf 18 -preset medium -c:a copy \
+      "$output_video"
+  fi
 
   printf 'Created:\n%s\n' "$output_video"
 fi

@@ -98,8 +98,7 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Targeted web search (Source C) for year-only inconsistencies to avoid MusicBrainz reissue years
 - ✅ Live AppleScript artist fetch (`get_all_artists_from_app()`) — eliminates stale CSV dependency in `rename_youtube.py`
 - ✅ Karaoke filename support (`[Karaoke]` brackets) + aggressive noise stripping for branded karaoke channels
-- ✅ Karaoke v2 prototype (`karaoke-process-v2`): `-splash` (preserve intro), `-z` (zoom), `--invert-bands` (rescue Party Tyme-style channels). Validated on ROSÉ & Bruno Mars - APT.
-- 🚧 Karaoke `--outline N` halo (stacked-offset gray copies, 8-compass directions, alpha-composited) — design validated on still frame, not yet integrated into v2 script
+- ✅ Karaoke v2 (`karaoke-process-v2`): `-splash` (preserve intro), `-z` (zoom), `--invert-bands` (rescue Party Tyme-style channels), `--outline N` (default 2; 0 disables; high-contrast two-ring gray halo via stacked-offset gray copies, 8-compass directions, alpha-composited). End-to-end validated on ROSÉ & Bruno Mars - APT.
 - 🚧 Audit library metadata quality (missing BPMs, keys)
 - BPM detection and tagging for tracks missing tempo data
 
@@ -167,7 +166,7 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - `-splash SECONDS` — single-pass `concat` filter inside `filter_complex`. Splash branch trims `[0,N)` and emits unaltered; body branch trims `[N,end]` and runs the mask+LUT chain; both concat. Audio stream-copied from the input → bit-perfect, no AAC frame-boundary issues. Accepts decimals.
 - `-z PERCENT` — `scale=iw*z:ih*z, crop=W:H` after the mask, before the grayscale+LUT. Output dims unchanged. Filter ordering matters: LUT runs *after* the scale, so the output stays deterministic 3-color (no anti-aliased gray pixels at scaled edges).
 - `--invert-bands` — flips the LUT polarity to `black / green / white` (low→high). Rescues Party Tyme and similar channels. Filename token changes `bwg-` → `bgw-` to flag the swap.
-- `--outline N` (in design, not yet integrated) — stacked-offset gray copies of the LUT'd text shape in 8 compass directions: inner stamps at ±N (gray 80), outer stamps at ±2N (gray 220), composited via alpha so the colored text core is preserved. Produces a "neon double-ring" halo: dark inner gasket + bright outer ring, total 2N px wide. Earlier attempts at outlines via `gblur+blend` and edge filters all looked poor; the stacked-copy approach is deterministic and configurable.
+- `--outline N` (default 2; 0 disables) — stacked-offset gray copies of the LUT'd text shape in 8 compass directions: inner stamps at ±N (gray 80), outer stamps at ±2N (gray 220), composited via alpha so the colored text core is preserved. Produces a "neon double-ring" halo: bright outer ring + dark inner gasket, total 2N px wide. Adds 16 overlay stamps per frame (~3-4x slower re-encode); when N=0 the outline chain is skipped and the script uses the fast `-vf` path. Earlier attempts at outlines via `gblur+blend` and edge filters all looked poor; the stacked-copy approach is deterministic and configurable.
 
 **Rationale:**
 - Each option addresses a real channel-coverage gap, not speculative

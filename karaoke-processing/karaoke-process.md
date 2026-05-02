@@ -182,7 +182,7 @@ Recommended starting parameters per known karaoke channel. **Always run with `-f
 
 - **Layout:** orange sung + bright white unsung on black, channel logo lower-left, ~5s splash intro card with title/artist
 - **Recommended (v2):** `karaoke-process-v2 "input.mp4" -lo 40 -hi 200 -z 10 --invert-bands --corners-only -t 0% -r 0% -b 30% -l 15% -splash 4.5`
-- **What that does:** keeps the first 4.5s splash unaltered; on the rest, masks only the bottom-left corner (large enough to cover the logo), zooms 10% for readability, applies the inverted LUT.
+- **What that does:** keeps the first 4.5s splash unaltered; on the rest, masks only the bottom-left corner (large enough to cover the logo), zooms 10% for readability, applies the inverted LUT, and adds the default 4px outline halo (`--outline 2` is implicit).
 
 ## v2 Prototype: `karaoke-process-v2`
 
@@ -219,36 +219,42 @@ Use when sung text is at *lower* luminance than unsung text (Party Tyme and simi
 
 Filename token changes from `bwg-LO-HI` to `bgw-LO-HI` to indicate inverted band order.
 
-## Roadmap: `--outline N` (in development)
+### `--outline N` (default 2; 0 disables)
 
-Planned addition to give the lyric text a high-contrast halo for readability when blended onto music videos. Earlier attempts using `gblur+blend` and edge filters produced poor / inconsistent results.
-
-### Approach: stacked offset gray copies
-
-Build a two-ring halo by stamping the LUT'd text shape at multiple offsets in gray, then placing the colored text on top via alpha compositing (so the colored core is preserved cleanly with no blend-mode desaturation).
+Add a high-contrast two-ring gray halo around the LUT'd text for readability when blended onto music videos. Built using stacked offset gray copies: stamp the LUT'd text shape at multiple offsets in gray, then place the colored text on top via alpha compositing so the colored core is preserved cleanly (no blend-mode desaturation).
 
 For `--outline N`:
-- **Inner stamps** at offsets ±N in 8 compass directions (N, NE, E, SE, S, SW, W, NW), gray 80
-- **Outer stamps** at offsets ±2N in the same 8 directions, gray 220, painted *first* so the inner pass overwrites the inner part of it
-- **Original colored text** overlaid on top at (0, 0), with black keyed transparent
+- **Outer stamps** at offsets ±2N (8 compass directions: N, NE, E, SE, S, SW, W, NW), gray 220, painted *first*
+- **Inner stamps** at offsets ±N in the same 8 directions, gray 80, painted on top — overwrites the inner part of the outer ring
+- **Original colored text** overlaid last at (0, 0), with black keyed transparent
 
-Result: an N-wide dark inner ring (gasket against bright backgrounds) plus an N-wide bright outer ring (lifts text against dark backgrounds), total halo 2N wide. The "neon double-border" effect ensures legibility across any music video color underneath.
+Result: an N-wide bright outer ring (lifts text against dark backgrounds) plus an N-wide dark inner ring (gasket against bright backgrounds), total halo 2N wide. The "neon double-border" effect ensures legibility across any music video color underneath.
 
-### Filter chain integration
+Defaults: `--outline 2` (4px halo total). Set `--outline 0` to disable. Maximum: 20.
 
-Outline runs **after the LUT, before the encode**. Operating on the deterministic 3-color LUT output (rather than the raw frame) keeps the halo gray uniform and predictable.
+Filter chain ordering inside the body: `mask → scale → crop → grayscale → LUT → outline`. Operating on the deterministic 3-color LUT output (rather than the raw frame) keeps the halo gray uniform and predictable.
 
-For splash interaction, the outline pass will live only inside the body branch of the `filter_complex`; splash frames stay unaltered.
+For splash interaction, the outline pass lives only inside the body branch of the `filter_complex`; splash frames stay unaltered.
 
-### Why this approach (vs. native ffmpeg outline filters)
+Filename token: ` outline-N` (omitted when N=0).
+
+#### Why this approach (vs. native ffmpeg outline filters)
+
+Earlier attempts using `gblur+blend` and edge filters produced poor / inconsistent results.
 
 - **Deterministic:** every output pixel is one of `{0,0,0}`, `{80,80,80}`, `{220,220,220}`, or one of the LUT's three text colors — predictable for FCP blending
 - **Configurable:** ring colors (currently fixed at 80 / 220) can be exposed as flags later; thickness via single `N` parameter
-- **Fast:** only `overlay` and `colorkey` filters — no per-pixel expression evaluation
+- **Reuses primitives we trust:** only `overlay` and `colorkey` — no per-pixel expression evaluation
 
-### Known limitation
+#### Performance
 
-At large N, the 8-stamp pattern produces a slight stair-step at the diagonal corners (gap of ~`N*(√2−1)` px in the radial direction). At `N≤4` it's invisible; above that, a 16-stamp pattern would be needed to smooth it.
+The outline pass adds 16 overlay operations per frame (8 outer + 8 inner stamps) plus a final composite. Re-encode is ~3-4x slower than the no-outline case (e.g., the APT test went from ~40s to ~3 minutes for a 3-minute song).
+
+When N=0, the outline filter chain is skipped entirely and the script falls back to the simpler `-vf` path — no performance hit.
+
+#### Known limitation
+
+At large N, the 8-stamp pattern produces a slight stair-step at the diagonal corners (gap of ~`N*(√2−1)` px in the radial direction). At `N≤4` it's invisible; at higher N values, a 16-stamp pattern would be needed to smooth it.
 
 ## Tuning Workflow
 
@@ -278,6 +284,6 @@ Corner-only still frame:
 Song Title [frame-20 masked-corners box-5-20-20-5].png
 Song Title [frame-20 processed-corners box-5-20-20-5 bwg-40-64].png
 
-v2 with inverted LUT, zoom, and splash:
-Song Title [corners box-5-30-15-5 bgw-40-200 zoom-10 splash-4_5].mp4
+v2 with inverted LUT, zoom, outline, and splash:
+Song Title [corners box-0-30-15-0 bgw-40-200 zoom-10 outline-2 splash-4_5].mp4
 ```
