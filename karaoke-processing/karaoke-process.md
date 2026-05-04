@@ -94,6 +94,13 @@ If you do not specify overrides, the script uses masked margins of:
   - bottom-left corner
   - bottom-right corner
 
+- `--sung-color HEX` *(v2)*
+  Color of the sung lyrics (the band that the original tool renders as green). 6-digit hex, optional leading `#`. Default: `00C800`. Examples: `--sung-color FFA500` (orange), `--sung-color "#FF1493"` (deep pink).
+  When non-default, output filename gets a `-sungXXXXXX` token appended to the threshold label (e.g., `bwg-40-80-sungFFA500`); default green keeps the legacy filename format.
+
+- `-o DIR` *(v2)*
+  Write outputs (preview PNGs and processed video) to `DIR` instead of the input file's directory. `DIR` is created if needed. Used by the GUI app to keep preview PNGs in a per-launch tmpdir; CLI users typically omit this.
+
 - `-h` or `--help`
   Shows help.
 
@@ -187,6 +194,8 @@ Recommended starting parameters per known karaoke channel. **Always run with `-f
 ## v2 Prototype: `karaoke-process-v2`
 
 A parallel script `karaoke-processing/karaoke-process-v2` adds new options on top of the v1 pipeline. Once integrated and tested across all channels, it will replace the v1 script.
+
+> v2 also has a SwiftUI front-end — see [`karaoke-process-gui`](#guikaraokeprocessgui) below — that drives the same script with live previews, presets, and a progress-bar-driven full encode. CLI usage is unchanged; the GUI is purely additive.
 
 ### `-splash SECONDS`
 
@@ -286,4 +295,63 @@ Song Title [frame-20 processed-corners box-5-20-20-5 bwg-40-64].png
 
 v2 with inverted LUT, zoom, outline, and splash:
 Song Title [corners box-0-30-15-0 bgw-40-200 zoom-10 outline-2 splash-4_5].mp4
+
+v2 with custom sung color (orange):
+Song Title [outer box-5-15-15-5 bwg-40-80-sungFFA500 outline-2].mp4
+```
+
+## GUI: `karaoke-process-gui`
+
+A SwiftUI macOS app that wraps `karaoke-process-v2` with a live-preview UI, persisted presets, and a foreground-progress full encode. Lives in `karaoke-processing/karaoke-process-gui/`. Built with Swift Package Manager → bundled as `KaraokeProcessGUI.app` via `build.sh`.
+
+### Features
+
+- **Three image panels** with white aspect-ratio borders that trace the actual video edges:
+  - AVPlayer-based video player (top-left)
+  - Mask + Zoom preview (bottom-left)
+  - LUT + Outline preview (bottom-right) — the most important panel for verifying final output
+- **Two-column parameters** (top-right) — Mask + Zoom on the left, Thresholds + Outline + Splash + Preset on the right
+- **Sung text color picker** — standard macOS `NSColorPanel` (defaults to Crayons mode); the swatch sits next to the Invert bands toggle
+- **Splash auto-capture** — toggling "Preserve intro splash" ON snaps the duration to the current playhead; user can edit the seconds field afterward
+- **Persisted presets** at `~/Library/Application Support/KaraokeProcessGUI/presets.json` (pretty-printed, sorted-keys); seeded with `Sing King` and `Musisi` on first launch. "Save current as preset…" picks up a new name (with overwrite confirmation if it exists). Splash is intentionally NOT included in saved presets — it's always per-file.
+- **Foreground processing with progress bar** — parses ffmpeg's `time=HH:MM:SS.ss` stderr lines vs. the asset's loaded duration. Cancel button kills the child cleanly; window-close also cancels. Done state shows "Reveal in Finder".
+- **Quick Action wrapper** — `karaoke-processing/Karaoke Process v2.workflow/` is a single-Run-Shell-Script Automator service that does `open -a /Applications/KaraokeProcessGUI.app "$f"`. Drop it in `~/Library/Services/`.
+
+### Build
+
+```bash
+cd karaoke-processing/karaoke-process-gui
+./build.sh                                  # produces KaraokeProcessGUI.app, ad-hoc signed
+mv KaraokeProcessGUI.app /Applications/
+cp -R "../Karaoke Process v2.workflow" ~/Library/Services/
+```
+
+Then right-click any video in Finder → Quick Actions → **Karaoke Process v2**.
+
+### Layout
+
+```
++--------------------------+--------------------------------------------+
+| Video player             | Margins / Zoom    | Thresholds + Sung color|
+| (AVPlayer + AR border)   | (left col)        | Outline / Splash       |
+|                          |                   | Preset                 |
+|                          +-------------------+------------------------+
+|                          | [↻ Refresh Previews]    ⌘R    t = M:SS.ss |
++--------------------------+--------------------------------------------+
+| Mask + Zoom preview      | LUT + Outline preview                      |
+| (AR border, dark bg)     | (AR border — full-aspect of final output)  |
++--------------------------+--------------------------------------------+
+| status: idle / progress bar (% + ETA) / done / failed                  |
++------------------------------------------------------------------------+
+```
+
+### Why these UI choices
+
+- **`NSViewRepresentable` around `AVPlayerView`** instead of SwiftUI's `VideoPlayer` — the latter depends on `_AVKit_SwiftUI`, which crashed at startup on macOS 26.3.1 with `getSuperclassMetadata` (saved as a feedback memory; see crash-reports archive)
+- **Dynamic `videoAspectRatio`** computed from `AVAssetTrack.naturalSize × preferredTransform` — ensures the white border traces the *true* video edges, not letterboxed panel chrome
+- **Manual progress refresh** (no live preview on slider drag) — each `-f` invocation takes 1–3s, too slow per tick
+- **No nohup/detach for processing** — running ffmpeg as a foreground child means we can stream stderr for progress AND closing the window cancels cleanly; matches user expectation
+
+```
+~/Projects/ydj-music-studio/karaoke-processing/karaoke-process-v2 "/path/to/input.mp4" -t 5% -b 15% -l 15% -r 5% --corners-only -lo 40 -hi 80 --invert-bands -z 10 --outline 2 -splash 5
 ```

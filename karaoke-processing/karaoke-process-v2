@@ -62,6 +62,14 @@ Optional arguments:
                (gray 220), in 8 compass directions, alpha-composited so
                the colored text core stays clean. Set N=0 to disable.
                Default: 2. Maximum: 20.
+  --sung-color HEX
+               Color of the sung lyrics (the band that the original tool
+               renders as green). 6-digit hex, optional leading #.
+               Default: 00C800. Examples: --sung-color FFA500 (orange),
+               --sung-color "#FF1493" (deep pink).
+  -o DIR       Write outputs (preview PNGs and processed video) to DIR
+               instead of the input file's directory. DIR is created if
+               needed.
   -h           Show this help
 
 Examples:
@@ -148,6 +156,9 @@ zoom_pct=""
 corners_only="false"
 invert_bands="false"
 outline_n="2"
+output_dir=""
+sung_color_default="00C800"
+sung_color="$sung_color_default"
 
 while (( $# > 0 )); do
   case "$1" in
@@ -207,6 +218,16 @@ while (( $# > 0 )); do
     --outline)
       (( $# >= 2 )) || die "Missing value for --outline"
       outline_n="$2"
+      shift 2
+      ;;
+    -o)
+      (( $# >= 2 )) || die "Missing value for -o"
+      output_dir="$2"
+      shift 2
+      ;;
+    --sung-color)
+      (( $# >= 2 )) || die "Missing value for --sung-color"
+      sung_color="$2"
       shift 2
       ;;
     -h|--help)
@@ -283,19 +304,38 @@ bottom_px=$(( height - bottom_mask_px ))
 
 base_name="$(basename_no_ext "$input_file")"
 input_dir="$(cd "$(dirname "$input_file")" && pwd)"
+if [[ -n "$output_dir" ]]; then
+  mkdir -p "$output_dir" || die "Could not create output directory: $output_dir"
+  output_base="$(cd "$output_dir" && pwd)"
+else
+  output_base="$input_dir"
+fi
 top_label="$(escape_label_percent "$top_raw")"
 bottom_label="$(escape_label_percent "$bottom_raw")"
 left_label="$(escape_label_percent "$left_raw")"
 right_label="$(escape_label_percent "$right_raw")"
 box_label="box-${top_label}-${bottom_label}-${left_label}-${right_label}"
+# Normalize sung color (strip leading #, uppercase, validate hex)
+sung_color="${sung_color#\#}"
+sung_color="$(printf '%s' "$sung_color" | tr '[:lower:]' '[:upper:]')"
+[[ "$sung_color" =~ ^[0-9A-F]{6}$ ]] || die "--sung-color must be 6 hex digits, got: $sung_color"
+sung_r=$((16#${sung_color:0:2}))
+sung_g=$((16#${sung_color:2:2}))
+sung_b=$((16#${sung_color:4:2}))
+
+sung_label_segment=""
+if [[ "$sung_color" != "$sung_color_default" ]]; then
+  sung_label_segment="-sung${sung_color}"
+fi
+
 if [[ "$invert_bands" == "true" ]]; then
-  thr_label="bgw-${low_thr}-${high_thr}"
-  mid_r="0";   mid_g="200"; mid_b="0"
-  hi_r="255";  hi_g="255";  hi_b="255"
+  thr_label="bgw-${low_thr}-${high_thr}${sung_label_segment}"
+  mid_r="$sung_r"; mid_g="$sung_g"; mid_b="$sung_b"
+  hi_r="255";      hi_g="255";      hi_b="255"
 else
-  thr_label="bwg-${low_thr}-${high_thr}"
-  mid_r="255"; mid_g="255"; mid_b="255"
-  hi_r="0";    hi_g="200";  hi_b="0"
+  thr_label="bwg-${low_thr}-${high_thr}${sung_label_segment}"
+  mid_r="255";    mid_g="255";    mid_b="255"
+  hi_r="$sung_r"; hi_g="$sung_g"; hi_b="$sung_b"
 fi
 
 zoom_filter_segment=""
@@ -360,8 +400,8 @@ fi
 
 if [[ -n "$frame_seconds" ]]; then
   frame_label="${frame_seconds//./_}"
-  masked_png="${input_dir}/${base_name} [frame-${frame_label} masked-${box_mode_label} ${box_label}${zoom_label_segment}].png"
-  processed_png="${input_dir}/${base_name} [frame-${frame_label} processed-${box_mode_label} ${box_label}${zoom_label_segment}${outline_label_segment} ${thr_label}].png"
+  masked_png="${output_base}/${base_name} [frame-${frame_label} masked-${box_mode_label} ${box_label}${zoom_label_segment}].png"
+  processed_png="${output_base}/${base_name} [frame-${frame_label} processed-${box_mode_label} ${box_label}${zoom_label_segment}${outline_label_segment} ${thr_label}].png"
 
   ffmpeg -y -ss "$frame_seconds" -i "$input_file" \
     -frames:v 1 -vf "$masked_filter_zoomed" -update 1 "$masked_png"
@@ -377,16 +417,17 @@ if [[ -n "$frame_seconds" ]]; then
 
   printf 'Created:\n%s\n%s\n' "$masked_png" "$processed_png"
 elif [[ -n "$splash_seconds" ]]; then
-  output_video="${input_dir}/${base_name} [${box_mode_label} ${box_label} ${thr_label}${zoom_label_segment}${outline_label_segment}${splash_label_segment}].mp4"
+  output_video="${output_base}/${base_name} [${box_mode_label} ${box_label} ${thr_label}${zoom_label_segment}${outline_label_segment}${splash_label_segment}].mp4"
 
   if [[ -n "$outline_chain" ]]; then
-    filter_complex="[0:v]trim=start=0:end=${splash_seconds},setpts=PTS-STARTPTS[splash];"
+    filter_complex="[0:v]trim=start=0:end=${splash_seconds},setpts=PTS-STARTPTS,setsar=1[splash];"
     filter_complex+="[0:v]trim=start=${splash_seconds},setpts=PTS-STARTPTS,${process_filter}[lut];"
     filter_complex+="${outline_chain};"
-    filter_complex+="[splash][outlined]concat=n=2:v=1:a=0[vout]"
+    filter_complex+="[outlined]setsar=1[outlined_n];"
+    filter_complex+="[splash][outlined_n]concat=n=2:v=1:a=0[vout]"
   else
-    filter_complex="[0:v]trim=start=0:end=${splash_seconds},setpts=PTS-STARTPTS[splash];"
-    filter_complex+="[0:v]trim=start=${splash_seconds},setpts=PTS-STARTPTS,${process_filter}[body];"
+    filter_complex="[0:v]trim=start=0:end=${splash_seconds},setpts=PTS-STARTPTS,setsar=1[splash];"
+    filter_complex+="[0:v]trim=start=${splash_seconds},setpts=PTS-STARTPTS,${process_filter},setsar=1[body];"
     filter_complex+="[splash][body]concat=n=2:v=1:a=0[vout]"
   fi
 
@@ -398,7 +439,7 @@ elif [[ -n "$splash_seconds" ]]; then
 
   printf 'Created:\n%s\n' "$output_video"
 else
-  output_video="${input_dir}/${base_name} [${box_mode_label} ${box_label} ${thr_label}${zoom_label_segment}${outline_label_segment}].mp4"
+  output_video="${output_base}/${base_name} [${box_mode_label} ${box_label} ${thr_label}${zoom_label_segment}${outline_label_segment}].mp4"
 
   if [[ -n "$outline_chain" ]]; then
     ffmpeg -y -i "$input_file" \

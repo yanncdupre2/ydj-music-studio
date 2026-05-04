@@ -47,3 +47,12 @@ processed/
 # Temporary files
 tmp/
 temp/
+
+# Swift / Xcode build artifacts (KaraokeProcessGUI etc.)
+.build/
+*.app/
+DerivedData/
+
+# macOS crash reports (machine-specific debug data)
+crash-reports/
+*.ips

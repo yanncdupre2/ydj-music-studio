@@ -99,6 +99,10 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Live AppleScript artist fetch (`get_all_artists_from_app()`) — eliminates stale CSV dependency in `rename_youtube.py`
 - ✅ Karaoke filename support (`[Karaoke]` brackets) + aggressive noise stripping for branded karaoke channels
 - ✅ Karaoke v2 (`karaoke-process-v2`): `-splash` (preserve intro), `-z` (zoom), `--invert-bands` (rescue Party Tyme-style channels), `--outline N` (default 2; 0 disables; high-contrast two-ring gray halo via stacked-offset gray copies, 8-compass directions, alpha-composited). End-to-end validated on ROSÉ & Bruno Mars - APT.
+- ✅ Karaoke v2 splash SAR fix: explicit `setsar=1` on both concat branches; videos with non-1:1 source SAR (e.g., 19520:19521) no longer fail filter-graph init when zoom is enabled.
+- ✅ Karaoke v2 `-o OUTPUT_DIR` flag — redirects output away from the source folder. Used by GUI for per-launch preview tmpdir.
+- ✅ Karaoke v2 `--sung-color HEX` flag — customizable sung-text color (default `00C800`). Filename gains `-sungXXXXXX` token only when non-default; default green is filename-stable for backward compat.
+- ✅ **Karaoke GUI** (`karaoke-process-gui/`): SwiftUI macOS app wrapping `karaoke-process-v2`. Three image panels with white aspect-ratio borders (video player, mask+zoom preview, LUT+outline preview); two-column parameter sidebar (margins+zoom on left, thresholds+outline+splash+preset on right) with bottom Refresh bar. Persisted presets at `~/Library/Application Support/KaraokeProcessGUI/presets.json` seeded with Sing King + Musisi. Foreground ffmpeg processing with stderr-parsed progress bar and cancel. Quick Action wrapper at `Karaoke Process v2.workflow` invoked via Finder right-click. Built with SPM + ad-hoc codesigning via `build.sh`.
 - 🚧 Audit library metadata quality (missing BPMs, keys)
 - BPM detection and tagging for tracks missing tempo data
 
@@ -158,6 +162,27 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ Seamless integration: `maturin develop --release` to build, same `mixer.py` entry point
 
 ## Key Decisions and Rationale
+
+### Decision: SwiftUI GUI for karaoke-process-v2 (`karaoke-process-gui`)
+**Context:** v2's CLI surface had grown to 12 flags (`-t -b -l -r -lo -hi -splash -z -f --corners-only --invert-bands --outline --sung-color`) and tuning a new channel meant editing the command line, running `-f` for a still frame, opening the PNGs in Preview, adjusting flags, repeating. Three pain points: (1) no live previews at the chosen frame; (2) no way to validate text positioning against the final aspect ratio of the output; (3) no way to capture per-channel parameter sets cleanly (e.g., "Sing King with pink sung color" vs "Sing King with orange").
+
+**Decision:** Build a SwiftUI macOS app that drives `karaoke-process-v2 -f` for live previews and the full `karaoke-process-v2` for the final encode. Wrap it in an Automator Quick Action so it's a Finder right-click away. CLI usage of the script remains unchanged — the GUI is purely additive.
+
+**Architecture:**
+- Swift Package Manager executable target → bundled into `KaraokeProcessGUI.app` via `build.sh` (ad-hoc codesigned)
+- SwiftUI views; `NSViewRepresentable` wraps `AVPlayerView` for the player (avoids a `_AVKit_SwiftUI` startup crash on macOS 26)
+- Aspect-ratio-faithful white borders on all three image panels using each image's true `naturalSize × preferredTransform` (so the border traces the *real* video edges)
+- Foreground `Process` for the full encode; stderr is streamed and ffmpeg's `time=HH:MM:SS.ss` parsed against the asset's loaded duration to drive a progress bar with ETA. Cancel button kills the child cleanly; closing the window cancels too.
+- Persisted presets as JSON at `~/Library/Application Support/KaraokeProcessGUI/presets.json`. Seeded with `Sing King` and `Musisi` on first launch. Backward-compatible decoder (`decodeIfPresent ?? default` for every field) so future schema additions don't lose existing user presets. Splash params are intentionally NOT included in saved presets (splash is per-file).
+- Color picker via SwiftUI's `ColorPicker` (defaults the shared `NSColorPanel` to Crayons mode at app launch).
+
+**Driving v2 changes:** the GUI work surfaced two small additions to v2: (1) `-o OUTPUT_DIR` so preview PNGs land in a per-launch tmpdir, not next to the source file; (2) `--sung-color HEX` so the user can pick a sung-text color other than the hardcoded green. Filename token gets `-sungXXXXXX` only when non-default — backward-compatible for default-green workflows.
+
+**Splash SAR fix (drove out by GUI testing):** running v2 from the GUI on a Party Tyme APT file with non-1:1 source SAR (19520:19521) hit a `Parsed_concat: Input link parameters do not match` error when zoom was enabled (zoom's `crop` filter normalizes body SAR to 1:1, but splash branch kept original SAR). Fix: explicit `setsar=1` on both concat branches. Backward-compatible — videos with already-1:1 SAR are unchanged.
+
+**Tradeoff:** the GUI is macOS-only and adds a Swift toolchain dependency for rebuilding. CLI is still the path for batch automation, scripting, and Linux/CI use.
+
+**Date:** 2026-05-03
 
 ### Decision: Karaoke v2 Enhancements (splash, zoom, invert-bands, outline)
 **Context:** The v1 luminance-LUT pipeline (decision below) works on Musisi-style channels but had three gaps surfacing during multi-channel testing: (1) channel splash screens (artist/title intro cards) were getting LUT-quantized along with the rest of the video, destroying their original look; (2) thinner-font channels were hard to read at native scale on a music-video background; (3) channels like Party Tyme have *brighter* unsung text than sung text, so the v1 LUT polarity (`black / white / green` low→high) maps both into the wrong bands and was documented as "do not run".
