@@ -5,8 +5,7 @@ struct ParametersPanel: View {
     @Binding var parameters: ProcessingParameters
     @Binding var currentPreset: CurrentPreset
     @ObservedObject var presetStore: PresetStore
-    let currentPlayheadSeconds: Double
-    let videoDurationSeconds: Double
+    @ObservedObject var player: AVPlayerWrapper
     let canRefresh: Bool
     let isRefreshing: Bool
     let onUserTouched: () -> Void
@@ -85,9 +84,9 @@ struct ParametersPanel: View {
             Toggle("Preserve intro splash", isOn: $parameters.splashEnabled)
                 .onChange(of: parameters.splashEnabled) { newValue in
                     if newValue {
-                        let captured = max(0.05, currentPlayheadSeconds)
-                        parameters.splashSeconds = videoDurationSeconds > 0
-                            ? min(captured, max(0.05, videoDurationSeconds - 0.05))
+                        let captured = max(0.05, player.currentSeconds)
+                        parameters.splashSeconds = player.durationSeconds > 0
+                            ? min(captured, max(0.05, player.durationSeconds - 0.05))
                             : captured
                     }
                     onUserTouched()
@@ -132,6 +131,13 @@ struct ParametersPanel: View {
             }
             Divider()
             Button("Save current as preset…") { presentSaveDialog() }
+            if case .named(let activeName) = currentPreset, presetStore.exists(activeName) {
+                Button(role: .destructive) {
+                    presentDeleteConfirmation(name: activeName)
+                } label: {
+                    Text("Delete preset “\(activeName)”…")
+                }
+            }
         } label: {
             HStack {
                 Text(currentPreset.label).lineLimit(1).truncationMode(.middle)
@@ -174,7 +180,7 @@ struct ParametersPanel: View {
 
             Spacer()
 
-            Text("t = \(formatPlayhead(currentPlayheadSeconds))")
+            Text("t = \(formatPlayhead(player.currentSeconds))")
                 .monospacedDigit()
                 .foregroundColor(.secondary)
                 .font(.callout)
@@ -248,6 +254,12 @@ struct ParametersPanel: View {
             presetStore.save(name: name, parameters: toSave)
             currentPreset = .named(name)
         }
+    }
+
+    private func presentDeleteConfirmation(name: String) {
+        guard PresetDeleteDialog.runConfirmation(name: name) else { return }
+        presetStore.delete(name: name)
+        currentPreset = .custom
     }
 }
 

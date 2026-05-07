@@ -47,6 +47,11 @@ final class PresetStore: ObservableObject {
         persist()
     }
 
+    func delete(name: String) {
+        guard presets.removeValue(forKey: name) != nil else { return }
+        persist()
+    }
+
     private func load() {
         guard let data = try? Data(contentsOf: storeURL),
               let decoded = try? JSONDecoder().decode([String: ProcessingParameters].self, from: data)
@@ -100,5 +105,18 @@ enum PresetSaveDialog {
             if confirm.runModal() != .alertFirstButtonReturn { return nil }
         }
         return name
+    }
+}
+
+enum PresetDeleteDialog {
+    /// Returns true if the user confirmed deletion, false on cancel.
+    static func runConfirmation(name: String) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Delete preset “\(name)”?"
+        alert.informativeText = "This permanently removes the preset. This action cannot be undone."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 }
