@@ -45,6 +45,23 @@ struct ParametersPanel: View {
 
             Divider().padding(.vertical, 2)
 
+            sectionHeader("Background darken")
+            HStack {
+                Toggle("Enable", isOn: $parameters.bgDarkenEnabled)
+                    .onChange(of: parameters.bgDarkenEnabled) { _ in onUserTouched() }
+                Spacer()
+                ColorPicker("Background color", selection: bgColorBinding, supportsOpacity: false)
+                    .labelsHidden()
+                    .disabled(!parameters.bgDarkenEnabled)
+            }
+            if parameters.bgDarkenEnabled {
+                slider("Strength", binding: $parameters.bgStrength, range: 0...100, step: 1, suffix: "%")
+                slider("Range",    binding: $parameters.bgRange,    range: 0...100, step: 1, suffix: "%")
+                slider("Blend",    binding: $parameters.bgBlend,    range: 0...100, step: 1, suffix: "%")
+            }
+
+            Divider().padding(.vertical, 2)
+
             sectionHeader("Zoom")
             Toggle("Enable zoom", isOn: $parameters.zoomEnabled)
                 .onChange(of: parameters.zoomEnabled) { _ in onUserTouched() }
@@ -227,6 +244,19 @@ struct ParametersPanel: View {
                 let hex = newColor.toHex() ?? ProcessingParameters.defaultSungColor
                 if hex != parameters.sungColor {
                     parameters.sungColor = hex
+                    onUserTouched()
+                }
+            }
+        )
+    }
+
+    private var bgColorBinding: Binding<Color> {
+        Binding<Color>(
+            get: { Color(hex: parameters.bgColor) ?? Color(red: 0, green: 64/255, blue: 192/255) },
+            set: { newColor in
+                let hex = newColor.toHex() ?? ProcessingParameters.defaultBgColor
+                if hex != parameters.bgColor {
+                    parameters.bgColor = hex
                     onUserTouched()
                 }
             }

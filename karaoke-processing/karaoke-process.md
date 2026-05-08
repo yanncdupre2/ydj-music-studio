@@ -265,6 +265,33 @@ When N=0, the outline filter chain is skipped entirely and the script falls back
 
 At large N, the 8-stamp pattern produces a slight stair-step at the diagonal corners (gap of ~`N*(√2−1)` px in the radial direction). At `N≤4` it's invisible; at higher N values, a 16-stamp pattern would be needed to smooth it.
 
+### `--bg-color HEX` (+ `--bg-strength`, `--bg-range`, `--bg-blend`)
+
+Optional background-darken pass. Karafun-style channels render lyrics over a colored, *non-black* background (deep blue, olive, orange, etc.). The default LUT can't separate that bright background into the low-luminance bucket, so any non-black background bleeds into the white/green bands.
+
+`--bg-color` activates a pre-LUT pass that pushes pixels matching a target color toward black, so the LUT can then quantize the result cleanly:
+
+- `--bg-color HEX` — target background color (6-digit hex, optional leading `#`). **This flag activates the feature**; absence keeps the feature OFF.
+- `--bg-strength N` (0–100, default 85) — how much to dim matched pixels. 100 = matched pixels become pure black; 0 = no dimming. Internally maps to a luma multiplier `K = (100 - N) / 100`.
+- `--bg-range N` (0–100, default 35) — how wide a band of similar colors counts as background. Maps non-linearly to ffmpeg `colorkey` similarity (0.01 at N=0, 0.30 at N=100); the useful Karafun range is roughly N=20–60.
+- `--bg-blend N` (0–100, default 10) — feathering at the match/no-match transition.
+
+Filter chain ordering inside the body: `mask → bg-darken → scale → crop → grayscale → LUT → outline`. The bg-darken pass runs *after* the mask (so the user's mask choice still hides logos) and *before* the LUT (so the LUT sees a near-black background). Splash branch is unaffected — bg-darken only runs on body content.
+
+Internally implemented as `colorkey` (RGB-distance) into an alpha mask, composited over a luma-scaled copy of the same frame. We initially tried `hsvkey` (hue-based) but discovered it's broken in ffmpeg 8.1 (output alpha stays at 255 even on exact-target inputs); `colorkey` is the working alternative.
+
+Filename token: ` bg-RRGGBB-DSnn-CRnn-BLnn` (only when active).
+
+Example — Depeche Mode (deep blue background):
+
+```bash
+karaoke-process-v2 "Depeche Mode - Shake The Disease.mp4" \
+  --bg-color 4742B8 --bg-strength 95 --bg-range 35 --bg-blend 10 \
+  -splash 5
+```
+
+For multi-hue backgrounds (varying brightness, color shifts) the technique can fall short — a fallback to multi-pass processing in Final Cut Pro is the documented escape hatch.
+
 ## Tuning Workflow
 
 The fast iteration loop for any new channel:
@@ -298,6 +325,9 @@ Song Title [corners box-0-30-15-0 bgw-40-200 zoom-10 outline-2 splash-4_5].mp4
 
 v2 with custom sung color (orange):
 Song Title [outer box-5-15-15-5 bwg-40-80-sungFFA500 outline-2].mp4
+
+v2 with background darken (DM blue-violet bg):
+Song Title [outer box-5-15-15-5 bwg-40-80 bg-4742B8-DS95-CR35-BL10 outline-2 splash-5].mp4
 ```
 
 ## GUI: `karaoke-process-gui`
