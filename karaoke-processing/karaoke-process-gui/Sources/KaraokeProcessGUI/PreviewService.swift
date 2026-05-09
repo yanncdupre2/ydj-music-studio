@@ -18,7 +18,7 @@ final class PreviewService {
     ) async throws -> (masked: NSImage, processed: NSImage) {
         var args: [String] = [input.path]
         args += ["-f", String(format: "%.3f", max(0, timeSeconds))]
-        args += parameters.cliArgs(includeSplash: false)
+        args += parameters.cliArgs(includeIntroOutro: false)
         args += ["-o", cacheDir.path]
 
         let result = try await ShellRunner.run(executable: scriptPath, args: args)

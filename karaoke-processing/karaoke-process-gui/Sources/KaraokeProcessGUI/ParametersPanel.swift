@@ -71,7 +71,7 @@ struct ParametersPanel: View {
         }
     }
 
-    // MARK: - Right column: LUT + Outline + Splash + Preset
+    // MARK: - Right column: LUT + Outline + Intro/Outro + Preset
 
     private var rightColumn: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -97,25 +97,65 @@ struct ParametersPanel: View {
 
             Divider().padding(.vertical, 2)
 
-            sectionHeader("Splash")
-            Toggle("Preserve intro splash", isOn: $parameters.splashEnabled)
-                .onChange(of: parameters.splashEnabled) { newValue in
+            sectionHeader("Intro")
+            Toggle("Apply intro effect", isOn: $parameters.introEnabled)
+                .onChange(of: parameters.introEnabled) { newValue in
                     if newValue {
                         let captured = max(0.05, player.currentSeconds)
-                        parameters.splashSeconds = player.durationSeconds > 0
+                        parameters.introSeconds = player.durationSeconds > 0
                             ? min(captured, max(0.05, player.durationSeconds - 0.05))
                             : captured
                     }
                     onUserTouched()
                 }
-            if parameters.splashEnabled {
+            if parameters.introEnabled {
                 HStack(spacing: 6) {
                     Text("Duration").frame(width: 60, alignment: .leading).font(.callout)
-                    SplashSecondsField(value: $parameters.splashSeconds, onCommit: onUserTouched)
+                    SplashSecondsField(value: $parameters.introSeconds, onCommit: onUserTouched)
                         .frame(width: 70)
                     Text("s").foregroundColor(.secondary).font(.callout)
                     Spacer()
                 }
+                Picker("", selection: $parameters.introMode) {
+                    Text("Preserve").tag(IntroOutroMode.preserve)
+                    Text("Blackout").tag(IntroOutroMode.blackout)
+                }
+                .pickerStyle(.radioGroup)
+                .horizontalRadioGroupLayout()
+                .labelsHidden()
+                .onChange(of: parameters.introMode) { _ in onUserTouched() }
+            }
+
+            Divider().padding(.vertical, 2)
+
+            sectionHeader("Outro")
+            Toggle("Apply outro effect", isOn: $parameters.outroEnabled)
+                .onChange(of: parameters.outroEnabled) { newValue in
+                    if newValue {
+                        let dur = player.durationSeconds
+                        if dur > 0 {
+                            let remaining = max(0.05, dur - player.currentSeconds)
+                            parameters.outroSeconds = min(remaining, max(0.05, dur - 0.05))
+                        }
+                    }
+                    onUserTouched()
+                }
+            if parameters.outroEnabled {
+                HStack(spacing: 6) {
+                    Text("Duration").frame(width: 60, alignment: .leading).font(.callout)
+                    SplashSecondsField(value: $parameters.outroSeconds, onCommit: onUserTouched)
+                        .frame(width: 70)
+                    Text("s").foregroundColor(.secondary).font(.callout)
+                    Spacer()
+                }
+                Picker("", selection: $parameters.outroMode) {
+                    Text("Preserve").tag(IntroOutroMode.preserve)
+                    Text("Blackout").tag(IntroOutroMode.blackout)
+                }
+                .pickerStyle(.radioGroup)
+                .horizontalRadioGroupLayout()
+                .labelsHidden()
+                .onChange(of: parameters.outroMode) { _ in onUserTouched() }
             }
 
             Divider().padding(.vertical, 2)
@@ -266,8 +306,12 @@ struct ParametersPanel: View {
     private func applyPreset(_ name: String) {
         guard let p = presetStore.parameters(for: name) else { return }
         var merged = p
-        merged.splashEnabled = parameters.splashEnabled
-        merged.splashSeconds = parameters.splashSeconds
+        merged.introEnabled = parameters.introEnabled
+        merged.introSeconds = parameters.introSeconds
+        merged.introMode = parameters.introMode
+        merged.outroEnabled = parameters.outroEnabled
+        merged.outroSeconds = parameters.outroSeconds
+        merged.outroMode = parameters.outroMode
         parameters = merged
         currentPreset = .named(name)
     }
@@ -279,8 +323,12 @@ struct ParametersPanel: View {
         }()
         if let name = PresetSaveDialog.runModal(presetStore: presetStore, suggestedName: suggestion) {
             var toSave = parameters
-            toSave.splashEnabled = false
-            toSave.splashSeconds = 5
+            toSave.introEnabled = false
+            toSave.introSeconds = 5
+            toSave.introMode = .preserve
+            toSave.outroEnabled = false
+            toSave.outroSeconds = 5
+            toSave.outroMode = .preserve
             presetStore.save(name: name, parameters: toSave)
             currentPreset = .named(name)
         }

@@ -53,7 +53,7 @@ final class ProcessService: ObservableObject {
         DispatchQueue.main.async { self.status = .starting(input: input) }
 
         var args = [input.path]
-        args += parameters.cliArgs(includeSplash: true)
+        args += parameters.cliArgs(includeIntroOutro: true)
 
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: scriptPath)

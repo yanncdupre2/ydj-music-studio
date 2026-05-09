@@ -8,13 +8,14 @@ Usage:
   karaoke-process-v2 INPUT_FILE [options]
 
 Description:
-  v2 of karaoke-process: same luminance-LUT pipeline plus an optional
-  splash-screen preservation feature. The first N seconds of the video
-  can be passed through completely unaltered (no mask, no LUT) and
-  concatenated back to the processed remainder in a single ffmpeg pass.
-  Audio is stream-copied from the original, untouched.
+  v2 of karaoke-process: same luminance-LUT pipeline plus optional
+  intro/outro pass-through or blackout. The first or last N seconds of
+  the video can either be preserved unaltered (no mask, no LUT) or
+  replaced with a fully black frame, then concatenated with the
+  processed body in a single ffmpeg pass. Audio is stream-copied from
+  the original, untouched.
 
-  Pipeline (per frame outside the splash window):
+  Pipeline (per frame in the body window):
     1. Mask part of the frame with black
     2. Convert remaining image to grayscale
     3. Remap luminance bands to fixed colors:
@@ -38,15 +39,32 @@ Optional arguments:
                Default: 40
   -hi HIGH     Upper threshold (0-255)
                Default: 80
-  -splash SECONDS
+  --intro-preserve SECONDS
                Preserve the first N seconds of the video unaltered (no
-               mask, no LUT), then concatenate the processed remainder.
-               Must be > 0 and < video duration.
-               Ignored in still-frame mode (-f).
+               mask, no LUT), then concatenate the processed body.
+               Must be > 0 and < video duration. Mutually exclusive
+               with --intro-blackout. Ignored in still-frame mode (-f).
+  --intro-blackout SECONDS
+               Replace the first N seconds of the video with a fully
+               black frame (audio preserved), then concatenate the
+               processed body. Same time constraints as --intro-preserve.
+               Mutually exclusive with --intro-preserve. Ignored in
+               still-frame mode (-f).
+  --outro-preserve SECONDS
+               Preserve the last N seconds of the video unaltered (no
+               mask, no LUT), concatenated after the processed body.
+               Must be > 0 and < video duration. Mutually exclusive
+               with --outro-blackout. Ignored in still-frame mode (-f).
+  --outro-blackout SECONDS
+               Replace the last N seconds of the video with a fully
+               black frame (audio preserved), concatenated after the
+               processed body. Same time constraints as --outro-preserve.
+               Mutually exclusive with --outro-preserve. Ignored in
+               still-frame mode (-f).
   -z PERCENT   Apply a uniform zoom (centered) of PERCENT% to the
                processed frames, before the LUT. Output dimensions are
-               unchanged (scale up, then center-crop back). Splash
-               frames are NOT zoomed. Must be > 0 and <= 100.
+               unchanged (scale up, then center-crop back). Intro and
+               outro frames are NOT zoomed. Must be > 0 and <= 100.
   -f SECONDS   Extract and process only a still frame at this timestamp
   --corners-only
                Black out only the corners implied by the margins instead
@@ -71,9 +89,9 @@ Optional arguments:
                Activate background darken. Pixels matching this color
                (in RGB distance, via ffmpeg's colorkey filter) are darkened
                toward black before the LUT. Inserted AFTER masking and
-               BEFORE zoom/grayscale/LUT/outline. Splash branch is unaffected.
-               6-digit hex, optional leading #. When this flag is absent,
-               background darken is OFF.
+               BEFORE zoom/grayscale/LUT/outline. Intro/outro branches
+               are unaffected. 6-digit hex, optional leading #. When this
+               flag is absent, background darken is OFF.
   --bg-strength N
                Darken strength 0-100 (default 85). 100 = matched pixels
                become pure black; 0 = no darkening. Only used with --bg-color.
@@ -89,8 +107,10 @@ Optional arguments:
 
 Examples:
   karaoke-process-v2 "/path/video.mp4"
-  karaoke-process-v2 "/path/video.mp4" -splash 5
-  karaoke-process-v2 "/path/video.mp4" -splash 5 -z 10 -lo 40 -hi 100
+  karaoke-process-v2 "/path/video.mp4" --intro-preserve 5
+  karaoke-process-v2 "/path/video.mp4" --intro-preserve 5 -z 10 -lo 40 -hi 100
+  karaoke-process-v2 "/path/video.mp4" --intro-blackout 3 --outro-blackout 4
+  karaoke-process-v2 "/path/video.mp4" --intro-preserve 5 --outro-preserve 8
   karaoke-process-v2 "/path/video.mp4" -lo 40 -hi 200 --invert-bands
   karaoke-process-v2 "/path/video.mp4" --outline 3
   karaoke-process-v2 "/path/video.mp4" --outline 0
@@ -166,7 +186,10 @@ right_raw="5%"
 low_thr="40"
 high_thr="80"
 frame_seconds=""
-splash_seconds=""
+intro_preserve_seconds=""
+intro_blackout_seconds=""
+outro_preserve_seconds=""
+outro_blackout_seconds=""
 zoom_pct=""
 corners_only="false"
 invert_bands="false"
@@ -216,9 +239,24 @@ while (( $# > 0 )); do
       frame_seconds="$2"
       shift 2
       ;;
-    -splash)
-      (( $# >= 2 )) || die "Missing value for -splash"
-      splash_seconds="$2"
+    --intro-preserve)
+      (( $# >= 2 )) || die "Missing value for --intro-preserve"
+      intro_preserve_seconds="$2"
+      shift 2
+      ;;
+    --intro-blackout)
+      (( $# >= 2 )) || die "Missing value for --intro-blackout"
+      intro_blackout_seconds="$2"
+      shift 2
+      ;;
+    --outro-preserve)
+      (( $# >= 2 )) || die "Missing value for --outro-preserve"
+      outro_preserve_seconds="$2"
+      shift 2
+      ;;
+    --outro-blackout)
+      (( $# >= 2 )) || die "Missing value for --outro-blackout"
+      outro_blackout_seconds="$2"
       shift 2
       ;;
     -z)
@@ -292,15 +330,38 @@ if [[ -n "$frame_seconds" ]]; then
   [[ "$frame_seconds" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "-f must be a non-negative number of seconds"
 fi
 
-if [[ -n "$splash_seconds" ]]; then
-  [[ "$splash_seconds" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "-splash must be a non-negative number of seconds"
-  awk -v s="$splash_seconds" 'BEGIN { exit !(s > 0) }' \
-    || die "-splash must be greater than 0 (omit -splash to process the whole video)"
+validate_seconds_flag() {
+  local flag="$1" value="$2"
+  [[ -z "$value" ]] && return 0
+  [[ "$value" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "$flag must be a non-negative number of seconds"
+  awk -v s="$value" 'BEGIN { exit !(s > 0) }' \
+    || die "$flag must be greater than 0 (omit $flag to leave that segment unchanged)"
+}
+
+validate_seconds_flag --intro-preserve "$intro_preserve_seconds"
+validate_seconds_flag --intro-blackout "$intro_blackout_seconds"
+validate_seconds_flag --outro-preserve "$outro_preserve_seconds"
+validate_seconds_flag --outro-blackout "$outro_blackout_seconds"
+
+if [[ -n "$intro_preserve_seconds" && -n "$intro_blackout_seconds" ]]; then
+  die "--intro-preserve and --intro-blackout are mutually exclusive"
+fi
+if [[ -n "$outro_preserve_seconds" && -n "$outro_blackout_seconds" ]]; then
+  die "--outro-preserve and --outro-blackout are mutually exclusive"
 fi
 
-if [[ -n "$frame_seconds" && -n "$splash_seconds" ]]; then
-  echo "Note: -splash ignored in still-frame mode (-f)." >&2
-  splash_seconds=""
+if [[ -n "$frame_seconds" ]]; then
+  for pair in "--intro-preserve:intro_preserve_seconds" \
+              "--intro-blackout:intro_blackout_seconds" \
+              "--outro-preserve:outro_preserve_seconds" \
+              "--outro-blackout:outro_blackout_seconds"; do
+    flag="${pair%%:*}"
+    var="${pair#*:}"
+    if [[ -n "${!var}" ]]; then
+      echo "Note: $flag ignored in still-frame mode (-f)." >&2
+      printf -v "$var" '%s' ""
+    fi
+  done
 fi
 
 if [[ -n "$zoom_pct" ]]; then
@@ -331,11 +392,43 @@ height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of c
 
 [[ -n "$width" && -n "$height" ]] || die "Could not determine video dimensions"
 
-if [[ -n "$splash_seconds" ]]; then
+# Resolve intro / outro into a single (mode, seconds) per side. Modes:
+#   "preserve" — keep original frames in that segment
+#   "blackout" — replace those frames with a fully black frame
+#   "none"     — no concat for that side
+intro_mode="none"
+intro_seconds=""
+if [[ -n "$intro_preserve_seconds" ]]; then
+  intro_mode="preserve"; intro_seconds="$intro_preserve_seconds"
+elif [[ -n "$intro_blackout_seconds" ]]; then
+  intro_mode="blackout"; intro_seconds="$intro_blackout_seconds"
+fi
+
+outro_mode="none"
+outro_seconds=""
+if [[ -n "$outro_preserve_seconds" ]]; then
+  outro_mode="preserve"; outro_seconds="$outro_preserve_seconds"
+elif [[ -n "$outro_blackout_seconds" ]]; then
+  outro_mode="blackout"; outro_seconds="$outro_blackout_seconds"
+fi
+
+duration=""
+if [[ "$intro_mode" != "none" || "$outro_mode" != "none" ]]; then
   duration="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$input_file")"
   [[ -n "$duration" ]] || die "Could not determine video duration"
-  awk -v s="$splash_seconds" -v d="$duration" 'BEGIN { exit !(s < d) }' \
-    || die "-splash ($splash_seconds) must be less than video duration ($duration)"
+
+  if [[ "$intro_mode" != "none" ]]; then
+    awk -v s="$intro_seconds" -v d="$duration" 'BEGIN { exit !(s < d) }' \
+      || die "intro duration ($intro_seconds) must be less than video duration ($duration)"
+  fi
+  if [[ "$outro_mode" != "none" ]]; then
+    awk -v s="$outro_seconds" -v d="$duration" 'BEGIN { exit !(s < d) }' \
+      || die "outro duration ($outro_seconds) must be less than video duration ($duration)"
+  fi
+  if [[ "$intro_mode" != "none" && "$outro_mode" != "none" ]]; then
+    awk -v i="$intro_seconds" -v o="$outro_seconds" -v d="$duration" 'BEGIN { exit !(i + o < d) }' \
+      || die "intro ($intro_seconds) + outro ($outro_seconds) must be less than video duration ($duration)"
+  fi
 fi
 
 left_mask_px="$(percent_to_px "$left_mask_pct" "$width")"
@@ -400,11 +493,17 @@ if [[ -n "$zoom_pct" ]]; then
   zoom_label_segment=" zoom-${zoom_pct_label}"
 fi
 
-splash_label_segment=""
-if [[ -n "$splash_seconds" ]]; then
-  splash_label="${splash_seconds//./_}"
-  splash_label_segment=" splash-${splash_label}"
-fi
+intro_label_segment=""
+case "$intro_mode" in
+  preserve) intro_label_segment=" intro-keep-${intro_seconds//./_}" ;;
+  blackout) intro_label_segment=" intro-bo-${intro_seconds//./_}" ;;
+esac
+
+outro_label_segment=""
+case "$outro_mode" in
+  preserve) outro_label_segment=" outro-keep-${outro_seconds//./_}" ;;
+  blackout) outro_label_segment=" outro-bo-${outro_seconds//./_}" ;;
+esac
 
 bg_label_segment=""
 bg_k=""
@@ -425,12 +524,44 @@ if [[ "$bg_darken_active" == "true" ]]; then
   bg_label_segment=" bg-${bg_color}-DS${bg_ds_int}-CR${bg_cr_int}-BL${bg_bl_int}"
 fi
 
+# Build mask_filter from non-empty strips only. ffmpeg's drawbox treats w=0 or
+# h=0 as "use the full input dimension", so emitting a strip with a zero side
+# would paint the whole frame black — skip those entirely. With no margins set,
+# fall back to a passthrough `null` filter.
+mask_parts=()
 if [[ "$corners_only" == "true" ]]; then
-  mask_filter="drawbox=x=0:y=0:w=${left_px}:h=${top_px}:color=black:t=fill,drawbox=x=${right_px}:y=0:w=iw-${right_px}:h=${top_px}:color=black:t=fill,drawbox=x=0:y=${bottom_px}:w=${left_px}:h=ih-${bottom_px}:color=black:t=fill,drawbox=x=${right_px}:y=${bottom_px}:w=iw-${right_px}:h=ih-${bottom_px}:color=black:t=fill"
+  if (( top_px > 0 && left_px > 0 )); then
+    mask_parts+=("drawbox=x=0:y=0:w=${left_px}:h=${top_px}:color=black:t=fill")
+  fi
+  if (( top_px > 0 && right_mask_px > 0 )); then
+    mask_parts+=("drawbox=x=${right_px}:y=0:w=iw-${right_px}:h=${top_px}:color=black:t=fill")
+  fi
+  if (( bottom_mask_px > 0 && left_px > 0 )); then
+    mask_parts+=("drawbox=x=0:y=${bottom_px}:w=${left_px}:h=ih-${bottom_px}:color=black:t=fill")
+  fi
+  if (( bottom_mask_px > 0 && right_mask_px > 0 )); then
+    mask_parts+=("drawbox=x=${right_px}:y=${bottom_px}:w=iw-${right_px}:h=ih-${bottom_px}:color=black:t=fill")
+  fi
   box_mode_label="corners"
 else
-  mask_filter="drawbox=x=0:y=0:w=iw:h=${top_px}:color=black:t=fill,drawbox=x=0:y=${bottom_px}:w=iw:h=ih-${bottom_px}:color=black:t=fill,drawbox=x=0:y=${top_px}:w=${left_px}:h=${bottom_px}-${top_px}:color=black:t=fill,drawbox=x=${right_px}:y=${top_px}:w=iw-${right_px}:h=${bottom_px}-${top_px}:color=black:t=fill"
+  if (( top_px > 0 )); then
+    mask_parts+=("drawbox=x=0:y=0:w=iw:h=${top_px}:color=black:t=fill")
+  fi
+  if (( bottom_mask_px > 0 )); then
+    mask_parts+=("drawbox=x=0:y=${bottom_px}:w=iw:h=ih-${bottom_px}:color=black:t=fill")
+  fi
+  if (( left_px > 0 )); then
+    mask_parts+=("drawbox=x=0:y=${top_px}:w=${left_px}:h=${bottom_px}-${top_px}:color=black:t=fill")
+  fi
+  if (( right_mask_px > 0 )); then
+    mask_parts+=("drawbox=x=${right_px}:y=${top_px}:w=iw-${right_px}:h=${bottom_px}-${top_px}:color=black:t=fill")
+  fi
   box_mode_label="outer"
+fi
+if (( ${#mask_parts[@]} > 0 )); then
+  mask_filter="$(IFS=,; echo "${mask_parts[*]}")"
+else
+  mask_filter="null"
 fi
 masked_filter_zoomed="${mask_filter}${zoom_filter_segment}"
 lut_r="if(lt(val,${low_thr}),0,if(lt(val,${high_thr}),${mid_r},${hi_r}))"
@@ -513,31 +644,74 @@ if [[ -n "$frame_seconds" ]]; then
   fi
 
   printf 'Created:\n%s\n%s\n' "$masked_png" "$processed_png"
-elif [[ -n "$splash_seconds" ]]; then
-  output_video="${output_base}/${base_name} [${box_mode_label} ${box_label} ${thr_label}${bg_label_segment}${zoom_label_segment}${outline_label_segment}${splash_label_segment}].mp4"
+elif [[ "$intro_mode" != "none" || "$outro_mode" != "none" ]]; then
+  # Build the intro/outro branches and the body trim. Each side may be off,
+  # in preserve mode (no extra filter), or in blackout mode (drawbox over the
+  # full frame). The body branch trim covers the gap between the two sides
+  # and keeps the original timeline so the original audio (mapped directly
+  # from 0:a:0) stays in sync after concat.
+  intro_branch=""
+  if [[ "$intro_mode" != "none" ]]; then
+    intro_extra_filter=""
+    [[ "$intro_mode" == "blackout" ]] && intro_extra_filter=",drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill"
+    intro_branch="[0:v]trim=start=0:end=${intro_seconds},setpts=PTS-STARTPTS${intro_extra_filter},setsar=1[intro]"
+  fi
+
+  outro_branch=""
+  outro_start=""
+  if [[ "$outro_mode" != "none" ]]; then
+    outro_start=$(awk -v d="$duration" -v o="$outro_seconds" 'BEGIN { printf "%.6f", d - o }')
+    outro_extra_filter=""
+    [[ "$outro_mode" == "blackout" ]] && outro_extra_filter=",drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill"
+    outro_branch="[0:v]trim=start=${outro_start}:end=${duration},setpts=PTS-STARTPTS${outro_extra_filter},setsar=1[outro]"
+  fi
+
+  if [[ "$intro_mode" != "none" && "$outro_mode" != "none" ]]; then
+    body_trim="trim=start=${intro_seconds}:end=${outro_start},setpts=PTS-STARTPTS,"
+  elif [[ "$intro_mode" != "none" ]]; then
+    body_trim="trim=start=${intro_seconds},setpts=PTS-STARTPTS,"
+  else
+    body_trim="trim=start=0:end=${outro_start},setpts=PTS-STARTPTS,"
+  fi
+  body_prefix="[0:v]${body_trim}"
+
+  concat_inputs=""
+  concat_n=0
+  if [[ "$intro_mode" != "none" ]]; then
+    concat_inputs+="[intro]"
+    concat_n=$((concat_n + 1))
+  fi
+  concat_inputs+="[body]"
+  concat_n=$((concat_n + 1))
+  if [[ "$outro_mode" != "none" ]]; then
+    concat_inputs+="[outro]"
+    concat_n=$((concat_n + 1))
+  fi
+  concat_filter="${concat_inputs}concat=n=${concat_n}:v=1:a=0[vout]"
+
+  output_video="${output_base}/${base_name} [${box_mode_label} ${box_label} ${thr_label}${bg_label_segment}${zoom_label_segment}${outline_label_segment}${intro_label_segment}${outro_label_segment}].mp4"
+
+  fc=""
+  [[ -n "$intro_branch" ]] && fc+="${intro_branch};"
+  [[ -n "$outro_branch" ]] && fc+="${outro_branch};"
 
   if [[ "$bg_darken_active" == "true" ]]; then
-    body_prefix="[0:v]trim=start=${splash_seconds},setpts=PTS-STARTPTS,"
-    fc="[0:v]trim=start=0:end=${splash_seconds},setpts=PTS-STARTPTS,setsar=1[splash];"
     fc+="$(build_lut_complex "$body_prefix")"
     if [[ -n "$outline_chain" ]]; then
       fc+=";${outline_chain};[outlined]setsar=1[body];"
     else
       fc+=";[lut]setsar=1[body];"
     fi
-    fc+="[splash][body]concat=n=2:v=1:a=0[vout]"
-    filter_complex="$fc"
   elif [[ -n "$outline_chain" ]]; then
-    filter_complex="[0:v]trim=start=0:end=${splash_seconds},setpts=PTS-STARTPTS,setsar=1[splash];"
-    filter_complex+="[0:v]trim=start=${splash_seconds},setpts=PTS-STARTPTS,${process_filter}[lut];"
-    filter_complex+="${outline_chain};"
-    filter_complex+="[outlined]setsar=1[outlined_n];"
-    filter_complex+="[splash][outlined_n]concat=n=2:v=1:a=0[vout]"
+    fc+="${body_prefix}${process_filter}[lut];"
+    fc+="${outline_chain};"
+    fc+="[outlined]setsar=1[body];"
   else
-    filter_complex="[0:v]trim=start=0:end=${splash_seconds},setpts=PTS-STARTPTS,setsar=1[splash];"
-    filter_complex+="[0:v]trim=start=${splash_seconds},setpts=PTS-STARTPTS,${process_filter},setsar=1[body];"
-    filter_complex+="[splash][body]concat=n=2:v=1:a=0[vout]"
+    fc+="${body_prefix}${process_filter},setsar=1[body];"
   fi
+
+  fc+="${concat_filter}"
+  filter_complex="$fc"
 
   ffmpeg -y -i "$input_file" \
     -filter_complex "$filter_complex" \

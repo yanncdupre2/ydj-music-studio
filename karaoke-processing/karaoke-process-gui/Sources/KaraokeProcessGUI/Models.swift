@@ -1,5 +1,10 @@
 import Foundation
 
+enum IntroOutroMode: String, Codable, Equatable {
+    case preserve
+    case blackout
+}
+
 struct ProcessingParameters: Equatable, Codable {
     var topPct: Double = 5
     var bottomPct: Double = 15
@@ -10,8 +15,12 @@ struct ProcessingParameters: Equatable, Codable {
     var cornersOnly: Bool = false
     var invertBands: Bool = false
     var outlineN: Int = 2
-    var splashEnabled: Bool = false
-    var splashSeconds: Double = 5
+    var introEnabled: Bool = false
+    var introSeconds: Double = 5
+    var introMode: IntroOutroMode = .preserve
+    var outroEnabled: Bool = false
+    var outroSeconds: Double = 5
+    var outroMode: IntroOutroMode = .preserve
     var zoomEnabled: Bool = false
     var zoomPercent: Double = 10
     var sungColor: String = "00C800"
@@ -30,7 +39,8 @@ struct ProcessingParameters: Equatable, Codable {
         case topPct, bottomPct, leftPct, rightPct
         case lowThreshold, highThreshold
         case cornersOnly, invertBands, outlineN
-        case splashEnabled, splashSeconds
+        case introEnabled, introSeconds, introMode
+        case outroEnabled, outroSeconds, outroMode
         case zoomEnabled, zoomPercent
         case sungColor
         case bgDarkenEnabled, bgColor, bgStrength, bgRange, bgBlend
@@ -47,8 +57,12 @@ struct ProcessingParameters: Equatable, Codable {
         self.cornersOnly      = try c.decodeIfPresent(Bool.self,   forKey: .cornersOnly)      ?? false
         self.invertBands      = try c.decodeIfPresent(Bool.self,   forKey: .invertBands)      ?? false
         self.outlineN         = try c.decodeIfPresent(Int.self,    forKey: .outlineN)         ?? 2
-        self.splashEnabled    = try c.decodeIfPresent(Bool.self,   forKey: .splashEnabled)    ?? false
-        self.splashSeconds    = try c.decodeIfPresent(Double.self, forKey: .splashSeconds)    ?? 5
+        self.introEnabled     = try c.decodeIfPresent(Bool.self,   forKey: .introEnabled)     ?? false
+        self.introSeconds     = try c.decodeIfPresent(Double.self, forKey: .introSeconds)     ?? 5
+        self.introMode        = try c.decodeIfPresent(IntroOutroMode.self, forKey: .introMode) ?? .preserve
+        self.outroEnabled     = try c.decodeIfPresent(Bool.self,   forKey: .outroEnabled)     ?? false
+        self.outroSeconds     = try c.decodeIfPresent(Double.self, forKey: .outroSeconds)     ?? 5
+        self.outroMode        = try c.decodeIfPresent(IntroOutroMode.self, forKey: .outroMode) ?? .preserve
         self.zoomEnabled      = try c.decodeIfPresent(Bool.self,   forKey: .zoomEnabled)      ?? false
         self.zoomPercent      = try c.decodeIfPresent(Double.self, forKey: .zoomPercent)      ?? 10
         self.sungColor        = try c.decodeIfPresent(String.self, forKey: .sungColor)        ?? Self.defaultSungColor
@@ -59,7 +73,7 @@ struct ProcessingParameters: Equatable, Codable {
         self.bgBlend          = try c.decodeIfPresent(Double.self, forKey: .bgBlend)          ?? 10
     }
 
-    func cliArgs(includeSplash: Bool) -> [String] {
+    func cliArgs(includeIntroOutro: Bool) -> [String] {
         var args: [String] = []
         args += ["-t", "\(intStr(topPct))%"]
         args += ["-b", "\(intStr(bottomPct))%"]
@@ -67,8 +81,13 @@ struct ProcessingParameters: Equatable, Codable {
         args += ["-r", "\(intStr(rightPct))%"]
         args += ["-lo", intStr(lowThreshold)]
         args += ["-hi", intStr(highThreshold)]
-        if includeSplash, splashEnabled {
-            args += ["-splash", String(format: "%.2f", splashSeconds)]
+        if includeIntroOutro, introEnabled {
+            let flag = introMode == .blackout ? "--intro-blackout" : "--intro-preserve"
+            args += [flag, String(format: "%.2f", introSeconds)]
+        }
+        if includeIntroOutro, outroEnabled {
+            let flag = outroMode == .blackout ? "--outro-blackout" : "--outro-preserve"
+            args += [flag, String(format: "%.2f", outroSeconds)]
         }
         if zoomEnabled {
             args += ["-z", String(format: "%.2f", zoomPercent)]

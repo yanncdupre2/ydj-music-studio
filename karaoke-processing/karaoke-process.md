@@ -188,8 +188,8 @@ Recommended starting parameters per known karaoke channel. **Always run with `-f
 ### ROSÉ & Bruno Mars - APT. (Party Tyme channel)
 
 - **Layout:** orange sung + bright white unsung on black, channel logo lower-left, ~5s splash intro card with title/artist
-- **Recommended (v2):** `karaoke-process-v2 "input.mp4" -lo 40 -hi 200 -z 10 --invert-bands --corners-only -t 0% -r 0% -b 30% -l 15% -splash 4.5`
-- **What that does:** keeps the first 4.5s splash unaltered; on the rest, masks only the bottom-left corner (large enough to cover the logo), zooms 10% for readability, applies the inverted LUT, and adds the default 4px outline halo (`--outline 2` is implicit).
+- **Recommended (v2):** `karaoke-process-v2 "input.mp4" -lo 40 -hi 200 -z 10 --invert-bands --corners-only -t 0% -r 0% -b 30% -l 15% --intro-preserve 4.5`
+- **What that does:** keeps the first 4.5s intro card unaltered; on the rest, masks only the bottom-left corner (large enough to cover the logo), zooms 10% for readability, applies the inverted LUT, and adds the default 4px outline halo (`--outline 2` is implicit).
 
 ## v2 Prototype: `karaoke-process-v2`
 
@@ -197,23 +197,38 @@ A parallel script `karaoke-processing/karaoke-process-v2` adds new options on to
 
 > v2 also has a SwiftUI front-end — see [`karaoke-process-gui`](#guikaraokeprocessgui) below — that drives the same script with live previews, presets, and a progress-bar-driven full encode. CLI usage is unchanged; the GUI is purely additive.
 
-### `-splash SECONDS`
+### Intro / outro (`--intro-preserve`, `--intro-blackout`, `--outro-preserve`, `--outro-blackout`)
 
-Preserve the first N seconds of the source unaltered (no mask, no LUT), then concatenate the processed remainder.
+The first or last N seconds of the source can independently be either preserved unaltered (no mask, no LUT — useful for splash/intro cards or end credits you want to keep) or replaced with a fully black frame (audio preserved — useful for hiding outro logos or "next-up" cards). Each side is opt-in; the script always falls back to the simple no-concat path when both are off.
 
-- Single-pass `concat` filter: no temp files, splash and body render at matching dims, then concatenate
-- Audio is stream-copied from the input — bit-perfect, never decoded/re-encoded
-- Accepts decimal values (e.g., `-splash 4.5`)
-- Validation: must be > 0 and < video duration
-- Ignored in still-frame mode (`-f`); a notice is printed
-- Filename token: ` splash-N`
+- `--intro-preserve N` / `--intro-blackout N` — applies to seconds `[0, N)`
+- `--outro-preserve N` / `--outro-blackout N` — applies to the trailing N seconds
+- Single-pass `filter_complex`: branches `[intro][body][outro]` are concatenated with `concat=n=...:v=1:a=0`. When only one side is active, it's a 2-way concat; when neither is active, no concat at all.
+- Audio is stream-copied from the input — bit-perfect, never decoded/re-encoded. The body's video trim covers the gap between intro and outro so the concatenated video timeline stays aligned with the original audio.
+- **Mutually exclusive within each side**: `--intro-preserve` + `--intro-blackout` errors out (same for outro).
+- Validation: each value must be > 0 and < video duration; `intro + outro < duration` (so the body has at least one frame).
+- Ignored in still-frame mode (`-f`); a notice is printed.
+- Filename tokens: ` intro-keep-N` / ` intro-bo-N` / ` outro-keep-N` / ` outro-bo-N`.
+
+Examples:
+
+```bash
+# Preserve a 4.5s intro card and a 10s end card
+karaoke-process-v2 "input.mp4" --intro-preserve 4.5 --outro-preserve 10
+
+# Black out the first 3s of channel branding and the last 4s of "next up"
+karaoke-process-v2 "input.mp4" --intro-blackout 3 --outro-blackout 4
+
+# Keep the splash, but hide the outro card behind black
+karaoke-process-v2 "input.mp4" --intro-preserve 5 --outro-blackout 4
+```
 
 ### `-z PERCENT`
 
 Apply a uniform centered zoom of N% to the processed frames. Useful for thinner-font channels where lyric readability suffers at native scale.
 
 - Implemented as `scale=iw*z:ih*z, crop=W:H` — output dims are unchanged (drop-in for FCP overlay layer)
-- Splash frames are NOT zoomed — only body content
+- Intro and outro frames are NOT zoomed — only body content
 - Filter ordering inside the body: `mask → scale → crop → grayscale → LUT`. The LUT runs *after* the scale so the output stays deterministic 3-color (no gray/dark-green pixels at anti-aliased text edges)
 - Validation: must be > 0 and ≤ 100
 - Filename token: ` zoom-N`
@@ -243,7 +258,7 @@ Defaults: `--outline 2` (4px halo total). Set `--outline 0` to disable. Maximum:
 
 Filter chain ordering inside the body: `mask → scale → crop → grayscale → LUT → outline`. Operating on the deterministic 3-color LUT output (rather than the raw frame) keeps the halo gray uniform and predictable.
 
-For splash interaction, the outline pass lives only inside the body branch of the `filter_complex`; splash frames stay unaltered.
+The outline pass lives only inside the body branch of the `filter_complex`; intro and outro branches stay unaltered (preserved frames keep their look; blackout frames stay fully black).
 
 Filename token: ` outline-N` (omitted when N=0).
 
@@ -276,7 +291,7 @@ Optional background-darken pass. Karafun-style channels render lyrics over a col
 - `--bg-range N` (0–100, default 35) — how wide a band of similar colors counts as background. Maps non-linearly to ffmpeg `colorkey` similarity (0.01 at N=0, 0.30 at N=100); the useful Karafun range is roughly N=20–60.
 - `--bg-blend N` (0–100, default 10) — feathering at the match/no-match transition.
 
-Filter chain ordering inside the body: `mask → bg-darken → scale → crop → grayscale → LUT → outline`. The bg-darken pass runs *after* the mask (so the user's mask choice still hides logos) and *before* the LUT (so the LUT sees a near-black background). Splash branch is unaffected — bg-darken only runs on body content.
+Filter chain ordering inside the body: `mask → bg-darken → scale → crop → grayscale → LUT → outline`. The bg-darken pass runs *after* the mask (so the user's mask choice still hides logos) and *before* the LUT (so the LUT sees a near-black background). Intro and outro branches are unaffected — bg-darken only runs on body content.
 
 Internally implemented as `colorkey` (RGB-distance) into an alpha mask, composited over a luma-scaled copy of the same frame. We initially tried `hsvkey` (hue-based) but discovered it's broken in ffmpeg 8.1 (output alpha stays at 255 even on exact-target inputs); `colorkey` is the working alternative.
 
@@ -287,7 +302,7 @@ Example — Depeche Mode (deep blue background):
 ```bash
 karaoke-process-v2 "Depeche Mode - Shake The Disease.mp4" \
   --bg-color 4742B8 --bg-strength 95 --bg-range 35 --bg-blend 10 \
-  -splash 5
+  --intro-preserve 5
 ```
 
 For multi-hue backgrounds (varying brightness, color shifts) the technique can fall short — a fallback to multi-pass processing in Final Cut Pro is the documented escape hatch.
@@ -320,14 +335,17 @@ Corner-only still frame:
 Song Title [frame-20 masked-corners box-5-20-20-5].png
 Song Title [frame-20 processed-corners box-5-20-20-5 bwg-40-64].png
 
-v2 with inverted LUT, zoom, outline, and splash:
-Song Title [corners box-0-30-15-0 bgw-40-200 zoom-10 outline-2 splash-4_5].mp4
+v2 with inverted LUT, zoom, outline, and intro preserved:
+Song Title [corners box-0-30-15-0 bgw-40-200 zoom-10 outline-2 intro-keep-4_5].mp4
+
+v2 with intro preserved + outro blacked out:
+Song Title [outer box-5-15-15-5 bwg-40-80 outline-2 intro-keep-5 outro-bo-10].mp4
 
 v2 with custom sung color (orange):
 Song Title [outer box-5-15-15-5 bwg-40-80-sungFFA500 outline-2].mp4
 
 v2 with background darken (DM blue-violet bg):
-Song Title [outer box-5-15-15-5 bwg-40-80 bg-4742B8-DS95-CR35-BL10 outline-2 splash-5].mp4
+Song Title [outer box-5-15-15-5 bwg-40-80 bg-4742B8-DS95-CR35-BL10 outline-2 intro-keep-5].mp4
 ```
 
 ## GUI: `karaoke-process-gui`
@@ -340,10 +358,10 @@ A SwiftUI macOS app that wraps `karaoke-process-v2` with a live-preview UI, pers
   - AVPlayer-based video player (top-left)
   - Mask + Zoom preview (bottom-left)
   - LUT + Outline preview (bottom-right) — the most important panel for verifying final output
-- **Two-column parameters** (top-right) — Mask + Zoom on the left, Thresholds + Outline + Splash + Preset on the right
+- **Two-column parameters** (top-right) — Mask + Zoom + Background darken on the left, Thresholds + Outline + Intro + Outro + Preset on the right
 - **Sung text color picker** — standard macOS `NSColorPanel` (defaults to Crayons mode); the swatch sits next to the Invert bands toggle
-- **Splash auto-capture** — toggling "Preserve intro splash" ON snaps the duration to the current playhead; user can edit the seconds field afterward
-- **Persisted presets** at `~/Library/Application Support/KaraokeProcessGUI/presets.json` (pretty-printed, sorted-keys); seeded with `Sing King` and `Musisi` on first launch. "Save current as preset…" picks up a new name (with overwrite confirmation if it exists). Splash is intentionally NOT included in saved presets — it's always per-file.
+- **Intro / outro auto-capture** — Intro and Outro are independent toggles. Each, when enabled, snaps its duration field to a sensible default from the current playhead: Intro captures `currentSeconds`, Outro captures `duration − currentSeconds`. A horizontal **Preserve | Blackout** radio group inside each section drives `--{intro,outro}-{preserve,blackout}`.
+- **Persisted presets** at `~/Library/Application Support/KaraokeProcessGUI/presets.json` (pretty-printed, sorted-keys); seeded with `Sing King` and `Musisi` on first launch. "Save current as preset…" picks up a new name (with overwrite confirmation if it exists). Intro and outro params are intentionally NOT included in saved presets — they're always per-file.
 - **Foreground processing with progress bar** — parses ffmpeg's `time=HH:MM:SS.ss` stderr lines vs. the asset's loaded duration. Cancel button kills the child cleanly; window-close also cancels. Done state shows "Reveal in Finder".
 - **Quick Action wrapper** — `karaoke-processing/Karaoke Process v2.workflow/` is a single-Run-Shell-Script Automator service that does `open -a /Applications/KaraokeProcessGUI.app "$f"`. Drop it in `~/Library/Services/`.
 
@@ -363,7 +381,7 @@ Then right-click any video in Finder → Quick Actions → **Karaoke Process v2*
 ```
 +--------------------------+--------------------------------------------+
 | Video player             | Margins / Zoom    | Thresholds + Sung color|
-| (AVPlayer + AR border)   | (left col)        | Outline / Splash       |
+| (AVPlayer + AR border)   | Background darken | Outline / Intro / Outro|
 |                          |                   | Preset                 |
 |                          +-------------------+------------------------+
 |                          | [↻ Refresh Previews]    ⌘R    t = M:SS.ss |
@@ -383,5 +401,5 @@ Then right-click any video in Finder → Quick Actions → **Karaoke Process v2*
 - **No nohup/detach for processing** — running ffmpeg as a foreground child means we can stream stderr for progress AND closing the window cancels cleanly; matches user expectation
 
 ```
-~/Projects/ydj-music-studio/karaoke-processing/karaoke-process-v2 "/path/to/input.mp4" -t 5% -b 15% -l 15% -r 5% --corners-only -lo 40 -hi 80 --invert-bands -z 10 --outline 2 -splash 5
+~/Projects/ydj-music-studio/karaoke-processing/karaoke-process-v2 "/path/to/input.mp4" -t 5% -b 15% -l 15% -r 5% --corners-only -lo 40 -hi 80 --invert-bands -z 10 --outline 2 --intro-preserve 5
 ```
