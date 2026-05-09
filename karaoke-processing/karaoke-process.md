@@ -307,6 +307,25 @@ karaoke-process-v2 "Depeche Mode - Shake The Disease.mp4" \
 
 For multi-hue backgrounds (varying brightness, color shifts) the technique can fall short — a fallback to multi-pass processing in Final Cut Pro is the documented escape hatch.
 
+### `--no-lut`
+
+Skips the grayscale + 3-band LUT step. Output preserves the original (multi-color) lyrics on a black background instead of quantizing them to a single sung color.
+
+When to use it: channels that paint different singers or background vocals with different font colors — most notably Party Tyme duets, where the LUT would collapse all sung colors into one. With `--no-lut`, mask + bg-darken alone produce a clean lyrics-on-black image that's already usable as a luma-key/`screen`-blend overlay in Final Cut Pro, with the original per-singer coloring intact. Adding `--outline N` is recommended — the halo gives the multi-color text the same readability boost it gives the LUT'd version.
+
+What still applies: mask, `--bg-color`, `-z`, `--outline`, `--intro-*`, `--outro-*`. What's silently ignored: `-lo`, `-hi`, `--invert-bands`, `--sung-color` (those tune the LUT step that's no longer running).
+
+Pipeline with `--no-lut`: `mask → bg-darken → scale → crop → outline`. The bg-darken pass also neutralizes chroma (not just luma) so matched pixels actually go to true black; in LUT mode this is a no-op since the downstream `hue=s=0,lutrgb` pass overwrites chroma anyway.
+
+Filename token: ` nolut` replaces the LUT polarity token (` bwg-LO-HI` / ` bgw-LO-HI`) and the `-sungXXXXXX` sub-token.
+
+Example — Party Tyme duet (multi-color lyrics on the channel's blue background):
+
+```bash
+karaoke-process-v2 "Britney Spears - Criminal [Karaoke].mp4" \
+  --no-lut --bg-color 130FE6 --bg-strength 95 --outline 2
+```
+
 ## Tuning Workflow
 
 The fast iteration loop for any new channel:
@@ -346,6 +365,9 @@ Song Title [outer box-5-15-15-5 bwg-40-80-sungFFA500 outline-2].mp4
 
 v2 with background darken (DM blue-violet bg):
 Song Title [outer box-5-15-15-5 bwg-40-80 bg-4742B8-DS95-CR35-BL10 outline-2 intro-keep-5].mp4
+
+v2 with --no-lut (Party Tyme duet, multi-color lyrics on black):
+Song Title [outer box-5-15-15-5 nolut bg-130FE6-DS95-CR35-BL10 outline-2].mp4
 ```
 
 ## GUI: `karaoke-process-gui`
@@ -359,6 +381,7 @@ A SwiftUI macOS app that wraps `karaoke-process-v2` with a live-preview UI, pers
   - Mask + Zoom preview (bottom-left)
   - LUT + Outline preview (bottom-right) — the most important panel for verifying final output
 - **Two-column parameters** (top-right) — Mask + Zoom + Background darken on the left, Thresholds + Outline + Intro + Outro + Preset on the right
+- **Apply LUT toggle** — inline with the threshold section header. When unchecked, the Low/High sliders, Invert bands toggle, and Sung-color picker are hidden, and the encode runs with `--no-lut`. Used for channels with multi-color lyrics (e.g. Party Tyme duets) where the LUT would collapse colors.
 - **Sung text color picker** — standard macOS `NSColorPanel` (defaults to Crayons mode); the swatch sits next to the Invert bands toggle
 - **Intro / outro auto-capture** — Intro and Outro are independent toggles. Each, when enabled, snaps its duration field to a sensible default from the current playhead: Intro captures `currentSeconds`, Outro captures `duration − currentSeconds`. A horizontal **Preserve | Blackout** radio group inside each section drives `--{intro,outro}-{preserve,blackout}`.
 - **Persisted presets** at `~/Library/Application Support/KaraokeProcessGUI/presets.json` (pretty-printed, sorted-keys); seeded with `Sing King` and `Musisi` on first launch. "Save current as preset…" picks up a new name (with overwrite confirmation if it exists). Intro and outro params are intentionally NOT included in saved presets — they're always per-file.

@@ -10,6 +10,7 @@ struct ProcessingParameters: Equatable, Codable {
     var bottomPct: Double = 15
     var leftPct: Double = 15
     var rightPct: Double = 5
+    var applyLut: Bool = true
     var lowThreshold: Double = 40
     var highThreshold: Double = 80
     var cornersOnly: Bool = false
@@ -37,7 +38,7 @@ struct ProcessingParameters: Equatable, Codable {
 
     enum CodingKeys: String, CodingKey {
         case topPct, bottomPct, leftPct, rightPct
-        case lowThreshold, highThreshold
+        case applyLut, lowThreshold, highThreshold
         case cornersOnly, invertBands, outlineN
         case introEnabled, introSeconds, introMode
         case outroEnabled, outroSeconds, outroMode
@@ -52,6 +53,7 @@ struct ProcessingParameters: Equatable, Codable {
         self.bottomPct        = try c.decodeIfPresent(Double.self, forKey: .bottomPct)        ?? 15
         self.leftPct          = try c.decodeIfPresent(Double.self, forKey: .leftPct)          ?? 15
         self.rightPct         = try c.decodeIfPresent(Double.self, forKey: .rightPct)         ?? 5
+        self.applyLut         = try c.decodeIfPresent(Bool.self,   forKey: .applyLut)         ?? true
         self.lowThreshold     = try c.decodeIfPresent(Double.self, forKey: .lowThreshold)     ?? 40
         self.highThreshold    = try c.decodeIfPresent(Double.self, forKey: .highThreshold)    ?? 80
         self.cornersOnly      = try c.decodeIfPresent(Bool.self,   forKey: .cornersOnly)      ?? false
@@ -79,8 +81,10 @@ struct ProcessingParameters: Equatable, Codable {
         args += ["-b", "\(intStr(bottomPct))%"]
         args += ["-l", "\(intStr(leftPct))%"]
         args += ["-r", "\(intStr(rightPct))%"]
-        args += ["-lo", intStr(lowThreshold)]
-        args += ["-hi", intStr(highThreshold)]
+        if applyLut {
+            args += ["-lo", intStr(lowThreshold)]
+            args += ["-hi", intStr(highThreshold)]
+        }
         if includeIntroOutro, introEnabled {
             let flag = introMode == .blackout ? "--intro-blackout" : "--intro-preserve"
             args += [flag, String(format: "%.2f", introSeconds)]
@@ -93,14 +97,19 @@ struct ProcessingParameters: Equatable, Codable {
             args += ["-z", String(format: "%.2f", zoomPercent)]
         }
         if cornersOnly { args.append("--corners-only") }
-        if invertBands { args.append("--invert-bands") }
+        if applyLut, invertBands { args.append("--invert-bands") }
         args += ["--outline", "\(outlineN)"]
-        args += ["--sung-color", sungColor]
+        if applyLut {
+            args += ["--sung-color", sungColor]
+        }
         if bgDarkenEnabled {
             args += ["--bg-color", bgColor]
             args += ["--bg-strength", intStr(bgStrength)]
             args += ["--bg-range", intStr(bgRange)]
             args += ["--bg-blend", intStr(bgBlend)]
+        }
+        if !applyLut {
+            args.append("--no-lut")
         }
         return args
     }

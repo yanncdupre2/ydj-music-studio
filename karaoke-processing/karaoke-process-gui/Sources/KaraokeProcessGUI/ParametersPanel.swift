@@ -75,16 +75,23 @@ struct ParametersPanel: View {
 
     private var rightColumn: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionHeader("Luminance thresholds (0–255)")
-            slider("Low",  binding: $parameters.lowThreshold,  range: 0...255, step: 1, suffix: "")
-            slider("High", binding: $parameters.highThreshold, range: 0...255, step: 1, suffix: "")
             HStack {
-                Toggle("Invert bands", isOn: $parameters.invertBands)
-                    .onChange(of: parameters.invertBands) { _ in onUserTouched() }
+                sectionHeader("Luminance thresholds (0–255)")
                 Spacer()
-                Text("Sung color").font(.callout).foregroundColor(.secondary)
-                ColorPicker("Sung text color", selection: sungColorBinding, supportsOpacity: false)
-                    .labelsHidden()
+                Toggle("Apply LUT", isOn: $parameters.applyLut)
+                    .onChange(of: parameters.applyLut) { _ in onUserTouched() }
+            }
+            if parameters.applyLut {
+                slider("Low",  binding: $parameters.lowThreshold,  range: 0...255, step: 1, suffix: "")
+                slider("High", binding: $parameters.highThreshold, range: 0...255, step: 1, suffix: "")
+                HStack {
+                    Toggle("Invert bands", isOn: $parameters.invertBands)
+                        .onChange(of: parameters.invertBands) { _ in onUserTouched() }
+                    Spacer()
+                    Text("Sung color").font(.callout).foregroundColor(.secondary)
+                    ColorPicker("Sung text color", selection: sungColorBinding, supportsOpacity: false)
+                        .labelsHidden()
+                }
             }
 
             Divider().padding(.vertical, 2)
