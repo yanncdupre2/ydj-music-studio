@@ -104,7 +104,7 @@ struct ContentView: View {
         VStack(spacing: 4) {
             if state.scriptPath == nil {
                 HStack {
-                    Text("karaoke-process-v2 not found in ~/.local/bin or project tree.")
+                    Text("karaoke-process not found in ~/.local/bin or project tree.")
                         .foregroundColor(.red).font(.callout)
                     Spacer()
                 }

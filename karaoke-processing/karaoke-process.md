@@ -94,11 +94,11 @@ If you do not specify overrides, the script uses masked margins of:
   - bottom-left corner
   - bottom-right corner
 
-- `--sung-color HEX` *(v2)*
+- `--sung-color HEX`
   Color of the sung lyrics (the band that the original tool renders as green). 6-digit hex, optional leading `#`. Default: `00C800`. Examples: `--sung-color FFA500` (orange), `--sung-color "#FF1493"` (deep pink).
   When non-default, output filename gets a `-sungXXXXXX` token appended to the threshold label (e.g., `bwg-40-80-sungFFA500`); default green keeps the legacy filename format.
 
-- `-o DIR` *(v2)*
+- `-o DIR`
   Write outputs (preview PNGs and processed video) to `DIR` instead of the input file's directory. `DIR` is created if needed. Used by the GUI app to keep preview PNGs in a per-launch tmpdir; CLI users typically omit this.
 
 - `-h` or `--help`
@@ -181,21 +181,18 @@ Recommended starting parameters per known karaoke channel. **Always run with `-f
 ### Party Tyme
 
 - **Layout:** white unsung + orange (or other lower-luminance color) sung on black — sung is *darker* than unsung, the inverse of the Musisi pattern
-- **Old guidance:** "Do not run through this tool. The LUT will invert sung↔unsung."
-- **Current guidance (v2 only):** Run `karaoke-process-v2` with `--invert-bands` to swap the LUT polarity. Suggested starting params: `-lo 40 -hi 200 --invert-bands`.
-- **Why it works:** with `--invert-bands` the LUT becomes black / green / white (low / mid / high). Orange sung text (luminance ~158) lands in the mid band → renders green. White unsung text (luminance 255) lands in the high band → renders white. Both bands map correctly.
+- **Guidance:** Use `--invert-bands` to swap the LUT polarity. Suggested starting params: `-lo 40 -hi 200 --invert-bands`. Alternatively use `--no-lut` to keep multi-color text (per-singer colors in duets, background vocals) on a black background — see the `--no-lut` section below.
+- **Why `--invert-bands` works:** the LUT becomes black / sung-color / white (low / mid / high). Orange sung text (luminance ~158) lands in the mid band → renders as the sung color. White unsung text (luminance 255) lands in the high band → renders white. Both bands map correctly.
 
 ### ROSÉ & Bruno Mars - APT. (Party Tyme channel)
 
 - **Layout:** orange sung + bright white unsung on black, channel logo lower-left, ~5s splash intro card with title/artist
-- **Recommended (v2):** `karaoke-process-v2 "input.mp4" -lo 40 -hi 200 -z 10 --invert-bands --corners-only -t 0% -r 0% -b 30% -l 15% --intro-preserve 4.5`
+- **Recommended:** `karaoke-process "input.mp4" -lo 40 -hi 200 -z 10 --invert-bands --corners-only -t 0% -r 0% -b 30% -l 15% --intro-preserve 4.5`
 - **What that does:** keeps the first 4.5s intro card unaltered; on the rest, masks only the bottom-left corner (large enough to cover the logo), zooms 10% for readability, applies the inverted LUT, and adds the default 4px outline halo (`--outline 2` is implicit).
 
-## v2 Prototype: `karaoke-process-v2`
+## Advanced Options
 
-A parallel script `karaoke-processing/karaoke-process-v2` adds new options on top of the v1 pipeline. Once integrated and tested across all channels, it will replace the v1 script.
-
-> v2 also has a SwiftUI front-end — see [`karaoke-process-gui`](#guikaraokeprocessgui) below — that drives the same script with live previews, presets, and a progress-bar-driven full encode. CLI usage is unchanged; the GUI is purely additive.
+The features below build on the basic mask + LUT pipeline. They're all optional — defaults preserve the simple two-band luminance LUT behavior. A SwiftUI front-end (see [`karaoke-process-gui`](#guikaraokeprocessgui) below) wraps the same script with live previews, persisted presets, and a progress-bar-driven full encode; CLI usage is unchanged and the GUI is purely additive.
 
 ### Intro / outro (`--intro-preserve`, `--intro-blackout`, `--outro-preserve`, `--outro-blackout`)
 
@@ -214,13 +211,13 @@ Examples:
 
 ```bash
 # Preserve a 4.5s intro card and a 10s end card
-karaoke-process-v2 "input.mp4" --intro-preserve 4.5 --outro-preserve 10
+karaoke-process "input.mp4" --intro-preserve 4.5 --outro-preserve 10
 
 # Black out the first 3s of channel branding and the last 4s of "next up"
-karaoke-process-v2 "input.mp4" --intro-blackout 3 --outro-blackout 4
+karaoke-process "input.mp4" --intro-blackout 3 --outro-blackout 4
 
 # Keep the splash, but hide the outro card behind black
-karaoke-process-v2 "input.mp4" --intro-preserve 5 --outro-blackout 4
+karaoke-process "input.mp4" --intro-preserve 5 --outro-blackout 4
 ```
 
 ### `-z PERCENT`
@@ -300,7 +297,7 @@ Filename token: ` bg-RRGGBB-DSnn-CRnn-BLnn` (only when active).
 Example — Depeche Mode (deep blue background):
 
 ```bash
-karaoke-process-v2 "Depeche Mode - Shake The Disease.mp4" \
+karaoke-process "Depeche Mode - Shake The Disease.mp4" \
   --bg-color 4742B8 --bg-strength 95 --bg-range 35 --bg-blend 10 \
   --intro-preserve 5
 ```
@@ -329,11 +326,11 @@ Examples — Party Tyme duet (multi-color lyrics on the channel's blue backgroun
 
 ```bash
 # With bg-darken (recommended): default lo works
-karaoke-process-v2 "Britney Spears - Criminal [Karaoke].mp4" \
+karaoke-process "Britney Spears - Criminal [Karaoke].mp4" \
   --no-lut --bg-color 130FE6 --bg-strength 95 --outline 2
 
 # Without bg-darken: bump lo to clear the blue's ~41 luma
-karaoke-process-v2 "Britney Spears - Criminal [Karaoke].mp4" \
+karaoke-process "Britney Spears - Criminal [Karaoke].mp4" \
   --no-lut -lo 50 --outline 2
 ```
 
@@ -354,10 +351,10 @@ The script auto-generates output names next to the source file.
 Examples:
 
 ```text
-Video (v1):
+Basic full video:
 Song Title [outer box-5-15-15-5 bwg-40-80].mp4
 
-Still frame:
+Still frame (mask + processed PNGs):
 Song Title [frame-20 masked-outer box-20-20-20-20].png
 Song Title [frame-20 processed-outer box-20-20-20-20 bwg-40-64].png
 
@@ -365,25 +362,28 @@ Corner-only still frame:
 Song Title [frame-20 masked-corners box-5-20-20-5].png
 Song Title [frame-20 processed-corners box-5-20-20-5 bwg-40-64].png
 
-v2 with inverted LUT, zoom, outline, and intro preserved:
+Inverted LUT, zoom, outline, intro preserved:
 Song Title [corners box-0-30-15-0 bgw-40-200 zoom-10 outline-2 intro-keep-4_5].mp4
 
-v2 with intro preserved + outro blacked out:
+Intro preserved + outro blacked out:
 Song Title [outer box-5-15-15-5 bwg-40-80 outline-2 intro-keep-5 outro-bo-10].mp4
 
-v2 with custom sung color (orange):
+Custom sung color (orange):
 Song Title [outer box-5-15-15-5 bwg-40-80-sungFFA500 outline-2].mp4
 
-v2 with background darken (DM blue-violet bg):
+Background darken (DM blue-violet bg):
 Song Title [outer box-5-15-15-5 bwg-40-80 bg-4742B8-DS95-CR35-BL10 outline-2 intro-keep-5].mp4
 
-v2 with --no-lut (Party Tyme duet, multi-color lyrics on black):
+--no-lut (Party Tyme duet, multi-color lyrics on black):
 Song Title [outer box-5-15-15-5 nolut-40 bg-130FE6-DS95-CR35-BL10 outline-2].mp4
+
+Negative zoom (text shrunk, black padding around):
+Song Title [outer box-5-15-15-5 nolut-50 zoomout-10 outline-2].mp4
 ```
 
 ## GUI: `karaoke-process-gui`
 
-A SwiftUI macOS app that wraps `karaoke-process-v2` with a live-preview UI, persisted presets, and a foreground-progress full encode. Lives in `karaoke-processing/karaoke-process-gui/`. Built with Swift Package Manager → bundled as `KaraokeProcessGUI.app` via `build.sh`.
+A SwiftUI macOS app that wraps `karaoke-process` with a live-preview UI, persisted presets, and a foreground-progress full encode. Lives in `karaoke-processing/karaoke-process-gui/`. Built with Swift Package Manager → bundled as `KaraokeProcessGUI.app` via `build.sh`.
 
 ### Features
 
@@ -397,7 +397,7 @@ A SwiftUI macOS app that wraps `karaoke-process-v2` with a live-preview UI, pers
 - **Intro / outro auto-capture** — Intro and Outro are independent toggles. Each, when enabled, snaps its duration field to a sensible default from the current playhead: Intro captures `currentSeconds`, Outro captures `duration − currentSeconds`. A horizontal **Preserve | Blackout** radio group inside each section drives `--{intro,outro}-{preserve,blackout}`.
 - **Persisted presets** at `~/Library/Application Support/KaraokeProcessGUI/presets.json` (pretty-printed, sorted-keys); seeded with `Sing King` and `Musisi` on first launch. "Save current as preset…" picks up a new name (with overwrite confirmation if it exists). Intro and outro params are intentionally NOT included in saved presets — they're always per-file.
 - **Foreground processing with progress bar** — parses ffmpeg's `time=HH:MM:SS.ss` stderr lines vs. the asset's loaded duration. Cancel button kills the child cleanly; window-close also cancels. Done state shows "Reveal in Finder".
-- **Quick Action wrapper** — `karaoke-processing/Karaoke Process v2.workflow/` is a single-Run-Shell-Script Automator service that does `open -a /Applications/KaraokeProcessGUI.app "$f"`. Drop it in `~/Library/Services/`.
+- **Quick Action wrapper** — `karaoke-processing/Karaoke Process.workflow/` is a single-Run-Shell-Script Automator service that does `open -a /Applications/KaraokeProcessGUI.app "$f"`. Drop it in `~/Library/Services/`.
 
 ### Build
 
@@ -405,10 +405,10 @@ A SwiftUI macOS app that wraps `karaoke-process-v2` with a live-preview UI, pers
 cd karaoke-processing/karaoke-process-gui
 ./build.sh                                  # produces KaraokeProcessGUI.app, ad-hoc signed
 mv KaraokeProcessGUI.app /Applications/
-cp -R "../Karaoke Process v2.workflow" ~/Library/Services/
+cp -R "../Karaoke Process.workflow" ~/Library/Services/
 ```
 
-Then right-click any video in Finder → Quick Actions → **Karaoke Process v2**.
+Then right-click any video in Finder → Quick Actions → **Karaoke Process**.
 
 ### Layout
 
@@ -435,5 +435,5 @@ Then right-click any video in Finder → Quick Actions → **Karaoke Process v2*
 - **No nohup/detach for processing** — running ffmpeg as a foreground child means we can stream stderr for progress AND closing the window cancels cleanly; matches user expectation
 
 ```
-~/Projects/ydj-music-studio/karaoke-processing/karaoke-process-v2 "/path/to/input.mp4" -t 5% -b 15% -l 15% -r 5% --corners-only -lo 40 -hi 80 --invert-bands -z 10 --outline 2 --intro-preserve 5
+~/Projects/ydj-music-studio/karaoke-processing/karaoke-process "/path/to/input.mp4" -t 5% -b 15% -l 15% -r 5% --corners-only -lo 40 -hi 80 --invert-bands -z 10 --outline 2 --intro-preserve 5
 ```

@@ -11,7 +11,7 @@ YDJ Music Studio addresses four core workflows for DJs:
 1. **Playlist Optimization** — Harmonic mixing via Camelot wheel + BPM continuity. Rust engine combines simulated annealing (60x throughput vs. Python) with Held-Karp exact DP for n ≤ 20 (provably optimal in seconds).
 2. **Library Management** — Live AppleScript reads/writes, LLM-powered genre tagging from a canonical 31-genre taxonomy, interactive duplicate/inconsistency resolution.
 3. **YouTube Media Processing** — yt-dlp downloads → rename to `Artist - Title (Video/Karaoke/Lyrics Video)` format using a live Apple Music artist list, MKV→MP4 conversion, Opus→AAC.
-4. **Karaoke Video Prep** — Luminance-LUT pipeline turning a karaoke YouTube video into a black/white/green overlay layer for Final Cut Pro `screen`/`add` blending. v2 adds splash preservation, zoom, inverted-band polarity, and a high-contrast outline halo.
+4. **Karaoke Video Prep** — Luminance-LUT pipeline turning a karaoke YouTube video into a black/white/sung-color overlay layer for Final Cut Pro `screen`/`add` blending. Optional `--no-lut` mode preserves multi-color text on a black background. Intro/outro preserve-or-blackout, zoom in/out, inverted-band polarity, outline halo, background darken, and a SwiftUI front-end.
 
 ## Key Features
 
@@ -38,14 +38,17 @@ YDJ Music Studio addresses four core workflows for DJs:
 - Automatic 4K→1080p downscaling; Opus→AAC for Apple compatibility
 
 ### Karaoke Video Processing (`karaoke-process`)
-- Luminance-LUT pipeline: grayscale → 3-band mapping (`< lo` → black, mid → white, `≥ hi` → green) for clean FCP overlay blending
+- Luminance-LUT pipeline: grayscale → 3-band mapping (`< lo` → black, mid → white, `≥ hi` → sung-color) for clean FCP overlay blending
+- `--no-lut` opt-out preserves the original multi-color text (per-singer colors in duets) on a black background; uses `-lo` as a floor-to-black threshold
 - Configurable edge masking (full strips or `--corners-only`) to hide channel logos/watermarks
+- Independent intro/outro segments (`--intro-preserve`, `--intro-blackout`, `--outro-preserve`, `--outro-blackout`)
+- `-z N%` — uniform centered zoom (positive scales up + crops; negative scales down + center-pads with black for channels where lyrics sit too close to the edges)
+- `--invert-bands` — swap mid/high LUT outputs (rescues channels where unsung is brighter than sung, e.g. Party Tyme)
+- `--outline N` — high-contrast two-ring gray halo (default 2; 0 disables) for readability over busy backgrounds
+- `--bg-color HEX` (+ `--bg-strength`, `--bg-range`, `--bg-blend`) — background darken for Karafun-style colored backgrounds
+- `--sung-color HEX` — customize the sung-text color (default green `00C800`)
 - Still-frame mode (`-f SECONDS`) for fast threshold/mask tuning
-- v2 (`karaoke-process-v2`) adds:
-  - `-splash N` — preserve intro splash unaltered
-  - `-z N%` — uniform centered zoom for thinner-font channels
-  - `--invert-bands` — swap mid/high LUT outputs (rescues channels where unsung is brighter than sung, e.g. Party Tyme)
-  - `--outline N` — high-contrast two-ring gray halo (default 2; 0 disables) for readability over busy backgrounds
+- SwiftUI GUI front-end (`KaraokeProcessGUI.app`) with live previews, persisted presets, foreground progress bar, and Finder Quick Action wrapper
 
 ## Quick Start
 
@@ -89,9 +92,10 @@ python3 downloads/rename_youtube.py --apply    # actually rename
 
 ### Karaoke Video Processing
 ```bash
-karaoke-process "/path/to/karaoke.mp4"                      # v1, defaults
-karaoke-process-v2 "/path/to/karaoke.mp4" --outline 2       # v2 with outline halo
-karaoke-process-v2 "/path/to/karaoke.mp4" -lo 40 -hi 200 --invert-bands -splash 4.5 -z 10  # Party Tyme-style
+karaoke-process "/path/to/karaoke.mp4"                                      # defaults
+karaoke-process "/path/to/karaoke.mp4" -lo 40 -hi 200 --invert-bands -z 10  # Party Tyme polarity
+karaoke-process "/path/to/karaoke.mp4" --no-lut -lo 50 --outline 2          # multi-color duet, lyrics on black
+karaoke-process "/path/to/karaoke.mp4" --bg-color 4742B8 --bg-strength 95   # Karafun-style colored bg
 ```
 
 See `karaoke-processing/karaoke-process.md` for the full reference (channel-specific starting points, tuning workflow, all options).
@@ -104,7 +108,7 @@ ydj-music-studio/
 ├── mixer/               # Playlist optimization (Camelot, SA, planning docs)
 ├── library-management/  # Tagging, cleanup, inconsistency resolver
 ├── downloads/           # YouTube media processing (rename, MKV/Opus conversion)
-├── karaoke-processing/  # karaoke-process / karaoke-process-v2 + reference doc
+├── karaoke-processing/  # karaoke-process script + SwiftUI GUI + reference doc
 ├── src/ydj_mixer_engine/# Rust SA + Held-Karp engine (PyO3/maturin)
 └── data/                # Working data (XML exports, CSVs)
 ```
@@ -125,7 +129,7 @@ Each subfolder contains its own `CLAUDE.md` for focused AI agent context and dom
 - ✅ **Phase 4** — Safe AppleScript writes for year + genre (validated; in production use)
 - ✅ **Phase 5** — Rust performance engine (60x SA throughput, Held-Karp exact for n ≤ 20)
 
-Karaoke processing (cross-cutting): v1 in production at `~/.local/bin/karaoke-process`; v2 prototype feature-complete pending multi-channel validation.
+Karaoke processing (cross-cutting): single canonical `karaoke-process` script in production at `~/.local/bin/karaoke-process` with SwiftUI front-end at `/Applications/KaraokeProcessGUI.app`.
 
 See [PLANNING.md](PLANNING.md) for full roadmap and [PROJECT-LOCAL-CONTEXT.md](PROJECT-LOCAL-CONTEXT.md) for immediate next actions.
 

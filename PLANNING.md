@@ -31,7 +31,7 @@ A comprehensive DJ music production and library management system encompassing t
 - YouTube media processing (MKV→MP4, Opus→AAC conversion)
 - YouTube video downloading via yt-dlp (h264/1080p, Safari cookies for YouTube Premium)
 - YouTube download renaming (`rename_youtube.py` — artist/title/type normalization using Apple Music library)
-- Karaoke video enhancement for FCP overlay blending (luminance-LUT remap + edge masking via ffmpeg; `karaoke-process` v1 + `karaoke-process-v2` prototype with intro/outro preserve-or-blackout, zoom, inverted band polarity, outline halo, background darken, and a SwiftUI GUI)
+- Karaoke video enhancement for FCP overlay blending (`karaoke-process` script: luminance-LUT remap with optional `--no-lut` floor-to-black mode + edge masking via ffmpeg; intro/outro preserve-or-blackout, zoom in/out, inverted band polarity, outline halo, background darken, custom sung color, and a SwiftUI GUI front-end)
 - File renaming based on metadata tags
 - Safe read-only Apple Music integration (initial phase)
 
@@ -205,6 +205,8 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 **Tradeoff:** v2 has more parameters (we now have `-t -b -l -r -lo -hi -splash -z -f --corners-only --invert-bands` and soon `--outline`). The CLI surface is broader but each flag is independent and the help text covers usage.
 
 **Date:** 2026-05-02
+
+**Update (2026-05-09):** v1 retired. The v2 script (with all subsequent additions — bg-darken, intro/outro preserve/blackout, `--no-lut` floor-to-black mode, negative zoom, sung-color picker, GUI) is now the single canonical `karaoke-process` script and binary. The parallel-prototype phase ended once feature parity was reached and exceeded.
 
 ### Decision: Luminance-LUT Karaoke Pipeline (replaces `geq` color-match)
 **Context:** The original karaoke processing pipeline used ffmpeg's `geq` filter to do per-pixel color detection (orange → green) plus `gblur+blend` for glow. It worked visually but ran at ~0.1x realtime on 1080p — a 4-minute song took ~40 minutes to process.

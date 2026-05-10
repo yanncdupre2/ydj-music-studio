@@ -50,8 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func locateScript() -> String? {
         let home = NSHomeDirectory()
         let candidates = [
-            "\(home)/.local/bin/karaoke-process-v2",
-            "\(home)/Projects/ydj-music-studio/karaoke-processing/karaoke-process-v2"
+            "\(home)/.local/bin/karaoke-process",
+            "\(home)/Projects/ydj-music-studio/karaoke-processing/karaoke-process"
         ]
         for path in candidates where FileManager.default.isExecutableFile(atPath: path) {
             return path
