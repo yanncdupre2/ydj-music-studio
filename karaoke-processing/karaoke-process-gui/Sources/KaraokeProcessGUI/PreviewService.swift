@@ -53,6 +53,26 @@ final class PreviewService {
     }
 }
 
+private final class PipeBuffers: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "ShellRunner.buffer")
+    private var out = Data()
+    private var err = Data()
+
+    func appendOut(_ data: Data) { queue.async { self.out.append(data) } }
+    func appendErr(_ data: Data) { queue.async { self.err.append(data) } }
+
+    func finish(out outRemaining: Data, err errRemaining: Data) -> (String, String) {
+        queue.sync {
+            out.append(outRemaining)
+            err.append(errRemaining)
+            return (
+                String(data: out, encoding: .utf8) ?? "",
+                String(data: err, encoding: .utf8) ?? ""
+            )
+        }
+    }
+}
+
 enum ShellRunner {
     struct Result {
         let terminationStatus: Int32
@@ -72,11 +92,29 @@ enum ShellRunner {
             process.standardOutput = outPipe
             process.standardError = errPipe
 
+            // Drain pipes incrementally. macOS pipe buffers are ~64 KB; ffmpeg dumps
+            // input metadata to stderr on every invocation, and files with embedded
+            // Serato/MixedInKey markers can produce 30-40 KB per call. The script
+            // invokes ffmpeg twice for previews, so waiting until terminationHandler
+            // to read deadlocks the child once the buffer fills.
+            let buffers = PipeBuffers()
+            outPipe.fileHandleForReading.readabilityHandler = { handle in
+                let chunk = handle.availableData
+                if chunk.isEmpty { return }
+                buffers.appendOut(chunk)
+            }
+            errPipe.fileHandleForReading.readabilityHandler = { handle in
+                let chunk = handle.availableData
+                if chunk.isEmpty { return }
+                buffers.appendErr(chunk)
+            }
+
             process.terminationHandler = { proc in
-                let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-                let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-                let stdout = String(data: outData, encoding: .utf8) ?? ""
-                let stderr = String(data: errData, encoding: .utf8) ?? ""
+                let outRemaining = outPipe.fileHandleForReading.readDataToEndOfFile()
+                let errRemaining = errPipe.fileHandleForReading.readDataToEndOfFile()
+                outPipe.fileHandleForReading.readabilityHandler = nil
+                errPipe.fileHandleForReading.readabilityHandler = nil
+                let (stdout, stderr) = buffers.finish(out: outRemaining, err: errRemaining)
                 cont.resume(returning: Result(
                     terminationStatus: proc.terminationStatus,
                     stdout: stdout,
@@ -87,6 +125,8 @@ enum ShellRunner {
             do {
                 try process.run()
             } catch {
+                outPipe.fileHandleForReading.readabilityHandler = nil
+                errPipe.fileHandleForReading.readabilityHandler = nil
                 cont.resume(throwing: error)
             }
         }
