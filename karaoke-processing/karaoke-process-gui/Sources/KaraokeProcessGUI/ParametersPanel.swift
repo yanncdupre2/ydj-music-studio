@@ -66,7 +66,7 @@ struct ParametersPanel: View {
             Toggle("Enable zoom", isOn: $parameters.zoomEnabled)
                 .onChange(of: parameters.zoomEnabled) { _ in onUserTouched() }
             if parameters.zoomEnabled {
-                slider("Amount", binding: $parameters.zoomPercent, range: 1...100, step: 1, suffix: "%")
+                slider("Amount", binding: $parameters.zoomPercent, range: -20...20, step: 1, suffix: "%")
             }
         }
     }
@@ -76,13 +76,13 @@ struct ParametersPanel: View {
     private var rightColumn: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                sectionHeader("Luminance thresholds (0–255)")
+                sectionHeader(parameters.applyLut ? "Luminance thresholds (0–255)" : "Black floor (0–255)")
                 Spacer()
                 Toggle("Apply LUT", isOn: $parameters.applyLut)
                     .onChange(of: parameters.applyLut) { _ in onUserTouched() }
             }
+            slider("Low",  binding: $parameters.lowThreshold,  range: 0...255, step: 1, suffix: "")
             if parameters.applyLut {
-                slider("Low",  binding: $parameters.lowThreshold,  range: 0...255, step: 1, suffix: "")
                 slider("High", binding: $parameters.highThreshold, range: 0...255, step: 1, suffix: "")
                 HStack {
                     Toggle("Invert bands", isOn: $parameters.invertBands)

@@ -81,8 +81,10 @@ struct ProcessingParameters: Equatable, Codable {
         args += ["-b", "\(intStr(bottomPct))%"]
         args += ["-l", "\(intStr(leftPct))%"]
         args += ["-r", "\(intStr(rightPct))%"]
+        // -lo is reused as the floor threshold in --no-lut mode, so it always
+        // applies. -hi is LUT-only.
+        args += ["-lo", intStr(lowThreshold)]
         if applyLut {
-            args += ["-lo", intStr(lowThreshold)]
             args += ["-hi", intStr(highThreshold)]
         }
         if includeIntroOutro, introEnabled {

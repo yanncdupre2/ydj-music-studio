@@ -313,17 +313,28 @@ Skips the grayscale + 3-band LUT step. Output preserves the original (multi-colo
 
 When to use it: channels that paint different singers or background vocals with different font colors — most notably Party Tyme duets, where the LUT would collapse all sung colors into one. With `--no-lut`, mask + bg-darken alone produce a clean lyrics-on-black image that's already usable as a luma-key/`screen`-blend overlay in Final Cut Pro, with the original per-singer coloring intact. Adding `--outline N` is recommended — the halo gives the multi-color text the same readability boost it gives the LUT'd version.
 
-What still applies: mask, `--bg-color`, `-z`, `--outline`, `--intro-*`, `--outro-*`. What's silently ignored: `-lo`, `-hi`, `--invert-bands`, `--sung-color` (those tune the LUT step that's no longer running).
+What still applies: mask, `-lo`, `--bg-color`, `-z`, `--outline`, `--intro-*`, `--outro-*`. What's silently ignored: `-hi`, `--invert-bands`, `--sung-color` (those tune the LUT step that's no longer running).
 
-Pipeline with `--no-lut`: `mask → bg-darken → scale → crop → outline`. The bg-darken pass also neutralizes chroma (not just luma) so matched pixels actually go to true black; in LUT mode this is a no-op since the downstream `hue=s=0,lutrgb` pass overwrites chroma anyway.
+Pipeline with `--no-lut`: `mask → bg-darken → scale → crop → floor-to-black → outline`.
 
-Filename token: ` nolut` replaces the LUT polarity token (` bwg-LO-HI` / ` bgw-LO-HI`) and the `-sungXXXXXX` sub-token.
+The floor-to-black step is what replaces the LUT's low-band quantization. Mechanically: split the stream into two copies, build a binary luma mask from one (`hue=s=0,lutrgb=if(lt(val,lo),0,255)`), then multiply-blend it with the original. Pixels with luma below `-lo` become pure `(0,0,0)`; pixels above keep their original color. This gives the outline chain (which expects a black background to detect text by `gt(val,1)`) a clean canvas without quantizing the rest of the image. Why it's needed: bg-darken alone never produced pure black — it scaled luma by `K = (100−DS)/100` and (after the chroma fix in this commit) pulled chroma toward neutral 128, but at DS<100 you get *dark gray*, not pure black. In LUT mode the LUT's low band cleaned that up; in `--no-lut` mode the floor step is now what does it.
 
-Example — Party Tyme duet (multi-color lyrics on the channel's blue background):
+`-lo` defaults to 40, but Party Tyme blue (`130FE6`) has a luma of ~41 after `hue=s=0`, just barely above the floor. So default `-lo 40` doesn't push the bare blue background to black on its own — either bump `-lo` to ~50, or (more reliably) enable bg-darken which scales the luma down so far that the floor catches it easily.
+
+The bg-darken pass also neutralizes chroma (not just luma) — at DS=100 matched pixels become true black; in LUT mode this chroma move is a no-op since the downstream `hue=s=0,lutrgb` pass overwrites chroma anyway, but in `--no-lut` mode it's what stops blue from bleeding through after dimming.
+
+Filename token: ` nolut-LO` (e.g. ` nolut-40`) replaces the LUT polarity token (` bwg-LO-HI` / ` bgw-LO-HI`) and the `-sungXXXXXX` sub-token.
+
+Examples — Party Tyme duet (multi-color lyrics on the channel's blue background):
 
 ```bash
+# With bg-darken (recommended): default lo works
 karaoke-process-v2 "Britney Spears - Criminal [Karaoke].mp4" \
   --no-lut --bg-color 130FE6 --bg-strength 95 --outline 2
+
+# Without bg-darken: bump lo to clear the blue's ~41 luma
+karaoke-process-v2 "Britney Spears - Criminal [Karaoke].mp4" \
+  --no-lut -lo 50 --outline 2
 ```
 
 ## Tuning Workflow
@@ -367,7 +378,7 @@ v2 with background darken (DM blue-violet bg):
 Song Title [outer box-5-15-15-5 bwg-40-80 bg-4742B8-DS95-CR35-BL10 outline-2 intro-keep-5].mp4
 
 v2 with --no-lut (Party Tyme duet, multi-color lyrics on black):
-Song Title [outer box-5-15-15-5 nolut bg-130FE6-DS95-CR35-BL10 outline-2].mp4
+Song Title [outer box-5-15-15-5 nolut-40 bg-130FE6-DS95-CR35-BL10 outline-2].mp4
 ```
 
 ## GUI: `karaoke-process-gui`
@@ -381,7 +392,7 @@ A SwiftUI macOS app that wraps `karaoke-process-v2` with a live-preview UI, pers
   - Mask + Zoom preview (bottom-left)
   - LUT + Outline preview (bottom-right) — the most important panel for verifying final output
 - **Two-column parameters** (top-right) — Mask + Zoom + Background darken on the left, Thresholds + Outline + Intro + Outro + Preset on the right
-- **Apply LUT toggle** — inline with the threshold section header. When unchecked, the Low/High sliders, Invert bands toggle, and Sung-color picker are hidden, and the encode runs with `--no-lut`. Used for channels with multi-color lyrics (e.g. Party Tyme duets) where the LUT would collapse colors.
+- **Apply LUT toggle** — inline with the threshold section header. When unchecked, only the Low slider stays visible (now relabeled "Black floor"); the High slider, Invert bands toggle, and Sung-color picker are hidden, and the encode runs with `--no-lut`. The Low slider drives the floor-to-black threshold in no-lut mode (same parameter that drives the LUT low band in lut mode). Used for channels with multi-color lyrics (e.g. Party Tyme duets) where the LUT would collapse colors.
 - **Sung text color picker** — standard macOS `NSColorPanel` (defaults to Crayons mode); the swatch sits next to the Invert bands toggle
 - **Intro / outro auto-capture** — Intro and Outro are independent toggles. Each, when enabled, snaps its duration field to a sensible default from the current playhead: Intro captures `currentSeconds`, Outro captures `duration − currentSeconds`. A horizontal **Preserve | Blackout** radio group inside each section drives `--{intro,outro}-{preserve,blackout}`.
 - **Persisted presets** at `~/Library/Application Support/KaraokeProcessGUI/presets.json` (pretty-printed, sorted-keys); seeded with `Sing King` and `Musisi` on first launch. "Save current as preset…" picks up a new name (with overwrite confirmation if it exists). Intro and outro params are intentionally NOT included in saved presets — they're always per-file.

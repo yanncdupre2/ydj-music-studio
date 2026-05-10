@@ -63,8 +63,11 @@ Optional arguments:
                still-frame mode (-f).
   -z PERCENT   Apply a uniform zoom (centered) of PERCENT% to the
                processed frames, before the LUT. Output dimensions are
-               unchanged (scale up, then center-crop back). Intro and
-               outro frames are NOT zoomed. Must be > 0 and <= 100.
+               unchanged. Positive: scale up + center-crop (text gets
+               larger). Negative: scale down + center-pad with black
+               (text gets smaller, useful when lyrics sit too close to
+               the frame edges). 0 is a no-op. Intro and outro frames
+               are NOT zoomed. Range: -100 to 100.
   -f SECONDS   Extract and process only a still frame at this timestamp
   --corners-only
                Black out only the corners implied by the margins instead
@@ -104,9 +107,13 @@ Optional arguments:
                original (multi-color) lyrics on a black background — useful
                for channels like Party Tyme that use different font colors
                for different singers in duets, where the LUT would quantize
-               them to a single sung color. Mask, --bg-color, -z, and
-               --outline still apply. -lo, -hi, --invert-bands, and
-               --sung-color are silently ignored when this flag is set.
+               them to a single sung color. Mask, --bg-color, -z, --outline,
+               and -lo all still apply. -lo is reused as a floor-to-black
+               threshold: pixels with luma < lo go pure black, everything
+               above keeps its original color (so anti-aliased edges and
+               dim residue don't fool the outline chain). -hi,
+               --invert-bands, and --sung-color are silently ignored when
+               this flag is set.
   -o DIR       Write outputs (preview PNGs and processed video) to DIR
                instead of the input file's directory. DIR is created if
                needed.
@@ -379,9 +386,9 @@ if [[ -n "$frame_seconds" ]]; then
 fi
 
 if [[ -n "$zoom_pct" ]]; then
-  [[ "$zoom_pct" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "-z must be a non-negative number (percent)"
-  awk -v z="$zoom_pct" 'BEGIN { exit !(z > 0 && z <= 100) }' \
-    || die "-z must be greater than 0 and at most 100 (percent)"
+  [[ "$zoom_pct" =~ ^-?[0-9]+([.][0-9]+)?$ ]] || die "-z must be a number (percent, may be negative)"
+  awk -v z="$zoom_pct" 'BEGIN { exit !(z >= -100 && z <= 100) }' \
+    || die "-z must be between -100 and 100 (percent)"
 fi
 
 [[ "$outline_n" =~ ^[0-9]+$ ]] || die "--outline must be a non-negative integer"
@@ -489,7 +496,7 @@ if [[ "$sung_color" != "$sung_color_default" ]]; then
 fi
 
 if [[ "$no_lut" == "true" ]]; then
-  thr_label="nolut"
+  thr_label="nolut-${low_thr}"
   mid_r="255";    mid_g="255";    mid_b="255"
   hi_r="$sung_r"; hi_g="$sung_g"; hi_b="$sung_b"
 elif [[ "$invert_bands" == "true" ]]; then
@@ -506,9 +513,19 @@ zoom_filter_segment=""
 zoom_label_segment=""
 if [[ -n "$zoom_pct" ]]; then
   zoom_factor="$(awk -v z="$zoom_pct" 'BEGIN { printf "%.6f", 1 + z/100 }')"
-  zoom_filter_segment=",scale=iw*${zoom_factor}:ih*${zoom_factor},crop=${width}:${height}"
-  zoom_pct_label="${zoom_pct//./_}"
-  zoom_label_segment=" zoom-${zoom_pct_label}"
+  zoom_is_negative="$(awk -v z="$zoom_pct" 'BEGIN { print (z < 0 ? 1 : 0) }')"
+  if [[ "$zoom_is_negative" == "1" ]]; then
+    # Scale DOWN, then center-pad with pure black to keep output dims = WxH.
+    zoom_filter_segment=",scale=iw*${zoom_factor}:ih*${zoom_factor},pad=${width}:${height}:(${width}-iw)/2:(${height}-ih)/2:color=black"
+    zoom_abs="${zoom_pct#-}"
+    zoom_pct_label="${zoom_abs//./_}"
+    zoom_label_segment=" zoomout-${zoom_pct_label}"
+  else
+    # Scale UP, then center-crop back to WxH.
+    zoom_filter_segment=",scale=iw*${zoom_factor}:ih*${zoom_factor},crop=${width}:${height}"
+    zoom_pct_label="${zoom_pct//./_}"
+    zoom_label_segment=" zoom-${zoom_pct_label}"
+  fi
 fi
 
 intro_label_segment=""
@@ -586,7 +603,14 @@ lut_r="if(lt(val,${low_thr}),0,if(lt(val,${high_thr}),${mid_r},${hi_r}))"
 lut_g="if(lt(val,${low_thr}),0,if(lt(val,${high_thr}),${mid_g},${hi_g}))"
 lut_b="if(lt(val,${low_thr}),0,if(lt(val,${high_thr}),${mid_b},${hi_b}))"
 if [[ "$no_lut" == "true" ]]; then
-  process_filter="${masked_filter_zoomed}"
+  # Floor-to-black step: build a binary luma mask (255 where val >= low_thr,
+  # else 0) and multiply-blend with the original. Bright pixels keep their
+  # multi-color text; pixels below the threshold go pure (0,0,0). This gives
+  # the outline chain (which expects pure-black background) a clean canvas
+  # without quantizing the rest of the image. Same low_thr as the LUT mode,
+  # but no mid/high quantization.
+  floor_mask="hue=s=0,lutrgb=r='if(lt(val,${low_thr}),0,255)':g='if(lt(val,${low_thr}),0,255)':b='if(lt(val,${low_thr}),0,255)'"
+  process_filter="${masked_filter_zoomed},split=2[__nl_orig][__nl_mp];[__nl_mp]${floor_mask},format=gbrp[__nl_mask];[__nl_orig]format=gbrp[__nl_o];[__nl_o][__nl_mask]blend=all_mode=multiply,format=yuv420p"
 else
   process_filter="${masked_filter_zoomed},hue=s=0,lutrgb=r='${lut_r}':g='${lut_g}':b='${lut_b}'"
 fi
@@ -638,7 +662,12 @@ build_lut_complex() {
   out+="[bg_b]lutyuv=y='val*${bg_k}':u='128+(val-128)*${bg_k}':v='128+(val-128)*${bg_k}'[bg_dim];"
   out+="[bg_a]colorkey=color=0x${bg_color}:similarity=${bg_sim}:blend=${bg_blend_filter}[bg_keyed];"
   if [[ "$no_lut" == "true" ]]; then
-    out+="[bg_dim][bg_keyed]overlay,format=yuv420p${zoom_filter_segment}[lut]"
+    # See process_filter above for the floor-to-black rationale.
+    local floor_mask="hue=s=0,lutrgb=r='if(lt(val,${low_thr}),0,255)':g='if(lt(val,${low_thr}),0,255)':b='if(lt(val,${low_thr}),0,255)'"
+    out+="[bg_dim][bg_keyed]overlay,format=yuv420p${zoom_filter_segment},split=2[__bd_orig][__bd_mp];"
+    out+="[__bd_mp]${floor_mask},format=gbrp[__bd_mask];"
+    out+="[__bd_orig]format=gbrp[__bd_o];"
+    out+="[__bd_o][__bd_mask]blend=all_mode=multiply,format=yuv420p[lut]"
   else
     out+="[bg_dim][bg_keyed]overlay,format=yuv420p${zoom_filter_segment},hue=s=0,lutrgb=r='${lut_r}':g='${lut_g}':b='${lut_b}'[lut]"
   fi
