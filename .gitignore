@@ -48,6 +48,9 @@ processed/
 tmp/
 temp/
 
+# Local OAuth credentials / tokens
+data/private/
+
 # Swift / Xcode build artifacts (KaraokeProcessGUI etc.)
 .build/
 *.app/

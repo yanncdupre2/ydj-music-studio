@@ -132,6 +132,12 @@ def get_tracks_batch(start_index, batch_size=100):
                 end try
 
                 try
+                    set trackKind to kind of aTrack
+                on error
+                    set trackKind to ""
+                end try
+
+                try
                     set trackPlayCount to played count of aTrack
                 on error
                     set trackPlayCount to 0
@@ -147,7 +153,8 @@ def get_tracks_batch(start_index, batch_size=100):
                 set trackData to (trackID as text) & "|" & trackName & "|" & trackArtist & "|" & ¬
                     trackAlbum & "|" & trackAlbumArtist & "|" & trackGenre & "|" & ¬
                     (trackYear as text) & "|" & (trackBPM as text) & "|" & (trackRating as text) & "|" & ¬
-                    trackComments & "|" & trackGrouping & "|" & (trackPlayCount as text) & "|" & (trackDuration as text)
+                    trackComments & "|" & trackGrouping & "|" & trackKind & "|" & ¬
+                    (trackPlayCount as text) & "|" & (trackDuration as text)
 
                 set end of trackList to trackData
             on error
@@ -173,7 +180,7 @@ def get_tracks_batch(start_index, batch_size=100):
                 continue
 
             parts = line.split('|')
-            if len(parts) >= 13:
+            if len(parts) >= 14:
                 try:
                     track = {
                         'Track ID': parts[0],
@@ -187,8 +194,9 @@ def get_tracks_batch(start_index, batch_size=100):
                         'Rating': int(parts[8]) if parts[8] and parts[8] != '0' else 0,
                         'Comments': parts[9],
                         'Grouping': parts[10],
-                        'Play Count': int(parts[11]) if parts[11] else 0,
-                        'Duration (ms)': int(float(parts[12]) * 1000) if parts[12] else 0  # Convert seconds to ms
+                        'Kind': parts[11],
+                        'Play Count': int(parts[12]) if parts[12] else 0,
+                        'Duration (ms)': int(float(parts[13]) * 1000) if parts[13] else 0  # Convert seconds to ms
                     }
                     tracks.append(track)
                 except (ValueError, IndexError) as e:
@@ -242,6 +250,191 @@ def load_library_from_music_app(batch_size=100, progress=True):
     # Convert to DataFrame
     df = pd.DataFrame(all_tracks)
     return df
+
+
+def get_playlist_track_count(playlist_name: str) -> int:
+    """Return the number of tracks in a named Music.app playlist (including smart playlists)."""
+    escaped = playlist_name.replace('"', '\\"')
+    script = f'''
+    tell application "Music"
+        count of tracks of user playlist "{escaped}"
+    end tell
+    '''
+    return int(run_applescript(script))
+
+
+def get_playlist_tracks_batch(playlist_name: str, start_index: int, batch_size: int = 100) -> list:
+    """Fetch a batch of tracks from a named playlist by index (same fields as get_tracks_batch)."""
+    escaped = playlist_name.replace('"', '\\"')
+    script = f'''
+    tell application "Music"
+        set pl to user playlist "{escaped}"
+        set trackList to {{}}
+        set endIndex to {start_index + batch_size - 1}
+
+        repeat with i from {start_index} to endIndex
+            try
+                set aTrack to track i of pl
+
+                set trackID to database ID of aTrack
+                set trackName to name of aTrack
+                set trackArtist to artist of aTrack
+
+                try
+                    set trackAlbum to album of aTrack
+                on error
+                    set trackAlbum to ""
+                end try
+
+                try
+                    set trackAlbumArtist to album artist of aTrack
+                on error
+                    set trackAlbumArtist to ""
+                end try
+
+                try
+                    set trackGenre to genre of aTrack
+                on error
+                    set trackGenre to ""
+                end try
+
+                try
+                    set trackYear to year of aTrack
+                on error
+                    set trackYear to 0
+                end try
+
+                try
+                    set trackBPM to bpm of aTrack
+                on error
+                    set trackBPM to 0
+                end try
+
+                try
+                    set trackRating to rating of aTrack
+                on error
+                    set trackRating to 0
+                end try
+
+                try
+                    set trackComments to comment of aTrack
+                on error
+                    set trackComments to ""
+                end try
+
+                try
+                    set trackGrouping to grouping of aTrack
+                on error
+                    set trackGrouping to ""
+                end try
+
+                try
+                    set trackKind to kind of aTrack
+                on error
+                    set trackKind to ""
+                end try
+
+                try
+                    set trackPlayCount to played count of aTrack
+                on error
+                    set trackPlayCount to 0
+                end try
+
+                try
+                    set trackDuration to duration of aTrack
+                on error
+                    set trackDuration to 0
+                end try
+
+                set trackData to (trackID as text) & "|" & trackName & "|" & trackArtist & "|" & ¬
+                    trackAlbum & "|" & trackAlbumArtist & "|" & trackGenre & "|" & ¬
+                    (trackYear as text) & "|" & (trackBPM as text) & "|" & (trackRating as text) & "|" & ¬
+                    trackComments & "|" & trackGrouping & "|" & trackKind & "|" & ¬
+                    (trackPlayCount as text) & "|" & (trackDuration as text)
+
+                set end of trackList to trackData
+            on error
+                exit repeat
+            end try
+        end repeat
+
+        set AppleScript's text item delimiters to linefeed
+        return trackList as text
+    end tell
+    '''
+    try:
+        result = run_applescript(script)
+        if not result:
+            return []
+
+        tracks = []
+        for line in result.split('\n'):
+            if not line:
+                continue
+            parts = line.split('|')
+            if len(parts) >= 14:
+                try:
+                    track = {
+                        'Track ID': parts[0],
+                        'Name': parts[1],
+                        'Artist': parts[2],
+                        'Album': parts[3],
+                        'Album Artist': parts[4],
+                        'Genre': parts[5],
+                        'Year': int(parts[6]) if parts[6] and parts[6] != '0' else None,
+                        'BPM': int(parts[7]) if parts[7] and parts[7] != '0' else 0,
+                        'Rating': int(parts[8]) if parts[8] and parts[8] != '0' else 0,
+                        'Comments': parts[9],
+                        'Grouping': parts[10],
+                        'Kind': parts[11],
+                        'Play Count': int(parts[12]) if parts[12] else 0,
+                        'Duration (ms)': int(float(parts[13]) * 1000) if parts[13] else 0,
+                    }
+                    tracks.append(track)
+                except (ValueError, IndexError) as e:
+                    print(f"Warning: Failed to parse track: {e}")
+                    continue
+        return tracks
+    except RuntimeError as e:
+        print(f"Error fetching playlist batch: {e}")
+        return []
+
+
+def load_playlist_from_music_app(playlist_name: str, batch_size: int = 100, progress: bool = True) -> 'pd.DataFrame':
+    """Load all tracks from a named Music.app playlist in batches (fast; smart playlists supported).
+
+    Args:
+        playlist_name: Exact playlist name as it appears in Music.app (case-sensitive).
+        batch_size: Tracks per AppleScript call.
+        progress: Print progress to stdout.
+
+    Returns:
+        DataFrame with the same columns as load_library_from_music_app.
+    """
+    if progress:
+        print(f'Reading playlist "{playlist_name}" from Music.app...')
+
+    total = get_playlist_track_count(playlist_name)
+    if progress:
+        print(f"  {total:,} tracks in playlist")
+
+    all_tracks = []
+    current_index = 1
+    while current_index <= total:
+        if progress:
+            pct = (current_index / total) * 100
+            end = min(current_index + batch_size - 1, total)
+            print(f"  Fetching tracks {current_index:,}-{end:,} ({pct:.1f}%)...")
+        batch = get_playlist_tracks_batch(playlist_name, current_index, batch_size)
+        if not batch:
+            break
+        all_tracks.extend(batch)
+        current_index += batch_size
+
+    if progress:
+        print(f"✓ Loaded {len(all_tracks):,} tracks from \"{playlist_name}\"")
+
+    return pd.DataFrame(all_tracks)
 
 
 def main():
