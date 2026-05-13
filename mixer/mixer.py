@@ -835,6 +835,19 @@ for avg, idx, mn, mx, runs in summary:
 # 7. Output the Final Mix with Details
 ###############################
 
+# Orient the mix so it trends lower→higher BPM. The transition cost function
+# is symmetric (cost(A→B) == cost(B→A)) and shifts are per-track, so the
+# reversed order has identical total cost — picking the ascending-trend
+# orientation is a free presentation choice.
+if n >= 2:
+    _half = n // 2
+    _first_avg = sum(bpms[i] for i in global_overall_best_order[:_half]) / _half
+    _last_avg = sum(bpms[i] for i in global_overall_best_order[_half:]) / (n - _half)
+    if _last_avg < _first_avg:
+        global_overall_best_order = list(reversed(global_overall_best_order))
+        print(f"\nReversed order for ascending BPM trend "
+              f"(first half avg {_last_avg:.1f} → last half avg {_first_avg:.1f})")
+
 print("\nFinal Mix Order:")
 _thresh_int = int(TEMPO_THRESHOLD)  # 4 — integer BPM tolerance for display
 
@@ -942,6 +955,28 @@ for pos, idx in enumerate(global_overall_best_order):
     print(f"{pos+1:2d}. {bpm_str:<7s}  {key_str:<10s} -> {eff_key_str:<5s}  {trans_info:<20s}  {track['title']} - {track['artist']}")
 
 
+###############################
+# 7b. Write Final Mix to Text File
+###############################
+
+_timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+_output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            f"mix_{_timestamp}.txt")
+with open(_output_path, "w", encoding="utf-8") as _f:
+    _f.write("# YDJ Mixer — Final Mix Order\n")
+    _f.write(f"# Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+    _f.write(f"# Tracks: {n}  Cost: {global_overall_best_cost:.1f} "
+             f"(H={h_best:.1f}, T={t_best:.1f}, S={s_best:.1f})\n")
+    _f.write("#\n")
+    _f.write("# Pos  BPM  Shift  OrigKey  EffKey  Track\n")
+    for _pos, _idx in enumerate(global_overall_best_order):
+        _track = mix_tracks_data[_idx]
+        _s = global_overall_best_shifts[_idx]
+        _eff = shift_camelot_key(_track['camelot'], _s)
+        _f.write(f"{_pos+1:>4d}  {_track['bpm']:>3d}   {_s:+d}    "
+                 f"{_track['camelot']:<7s} {_eff:<6s}  "
+                 f"{_track['artist']} - {_track['title']}\n")
+print(f"\nWrote final mix to {_output_path}")
 
 
 # ###############################

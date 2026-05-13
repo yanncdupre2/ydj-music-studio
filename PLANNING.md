@@ -129,6 +129,8 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - ✅ DOE for annealing parameters: 9 variations (3 initial temps × 3 final temps), 879 attempts — nominal values (500 → 0.1, 410k iterations) confirmed optimal
 - ✅ Held-Karp exact optimizer: guarantees global optimum for n ≤ 20 tracks (< 1s for n=17)
 - ✅ Improved mix output: bridge hints appear as `>>` rows between tracks (harmonic + tempo); BPM range uses intersection of both neighbors' windows; keys expanded to all ±1 semitone variants
+- ✅ Ascending-BPM presentation: optimal order is reversed when the last half averages a lower BPM than the first half. The transition cost function is symmetric and shifts are per-track, so the reversed order has identical cost — picking ascending trend is a free presentation choice.
+- ✅ Per-run text export: writes `mixer/mix_YYYY-MM-DD_HH-MM-SS.txt` after each run with position, BPM, shift, original/effective Camelot keys, and `Artist - Title`. Files are timestamped (no overwrites) and gitignored.
 - Export optimized playlist back to Apple Music
 - Candidate library from DJ playlists (code ready, disabled)
 

@@ -44,6 +44,9 @@ processed/
 # Logs
 *.log
 
+# Mixer per-run outputs
+mixer/mix_*.txt
+
 # Temporary files
 tmp/
 temp/
