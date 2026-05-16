@@ -9,6 +9,9 @@ Comprehensive DJ music production and library management system for YDJ, encompa
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
 
+## Recent Session (2026-05-16)
+- 📌 **Karaoke folder read access**: Added `Read(//Users/fydupre/Music/Karaoke/**)` to project `.claude/settings.local.json` so Claude can read karaoke source files from `~/Music/Karaoke/` without per-prompt approval. Folder stays at its native location (not moved under the project).
+
 ## Recent Session (2026-05-12)
 - ✅ **Mixer ascending-BPM presentation**: After Held-Karp/SA produces `global_overall_best_order`, `mixer/mixer.py` now computes mean BPM of the first half (`order[:n//2]`) vs second half (`order[n//2:]`) and reverses the order when the last half is lower. Justification: edge cost is symmetric (`harmonic_cost_from_keys` uses absolute Camelot distance; tempo cost uses `abs(bpm1 - bpm2)`), and shifts are stored per track-index (not per position), so reversal preserves the exact cost. Reversal logged to stdout when it happens. Skipped for `n < 2`.
 - ✅ **Mixer per-run timestamped text export**: `mixer/mix_YYYY-MM-DD_HH-MM-SS.txt` written after the existing console output. Header lines (lines starting with `#`) include generation timestamp and cost breakdown; data rows have `Pos  BPM  Shift  OrigKey  EffKey  Artist - Title`. Path is resolved via `os.path.dirname(os.path.abspath(__file__))` so it always lands next to the script regardless of CWD. `.gitignore` gains `mixer/mix_*.txt` so per-run outputs don't clutter `git status`.
