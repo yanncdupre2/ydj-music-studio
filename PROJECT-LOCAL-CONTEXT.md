@@ -8,6 +8,27 @@ Comprehensive DJ music production and library management system for YDJ, encompa
 ## Completed Phases
 - ✅ **Phase 1:** Foundation & Organization — modular structure, genres.json, Git/GitHub
 - ✅ **Phase 4:** AppleScript integration — direct year/genre updates to Apple Music working
+- ✅ **Phase 5:** Rust performance engine — 60x SA throughput + Held-Karp exact for n ≤ 20
+
+## Current Priority / Next Actions
+
+Open Phase 2 (library management) and Phase 3 (mixer) items per PLANNING.md:
+
+- **Audit library metadata quality** — surface tracks missing BPM or key data (Phase 2, in progress).
+- **BPM detection and tagging** — automate tempo lookup for tracks without a BPM value.
+- **Export optimized playlist back to Apple Music** — write the mixer's optimal order as a new Apple Music playlist (Phase 3 outstanding item).
+- **Candidate library from DJ playlists** — code wired in `mixer/mixer.py` but disabled; revisit when the bridge-selection workflow needs it.
+
+## Recent Session (2026-05-18)
+- ✅ **Doctrine conformance pass** via `/conform-project`:
+  - Flipped stub read order in `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` to the canonical sequence (GLOBAL-CONTEXT → PROJECT-LOCAL-CONTEXT → PLANNING).
+  - `PLANNING.md` Project Metadata block: removed the `**Status:** In Progress` line (deprecated 2026-05-18 — status lives only in the `## Status` checkboxes); unchecked the `Planning` checkbox so only `In Progress` is checked.
+  - `PLANNING.md` Out of Scope: removed stale item "Direct Apple Music library write operations (deferred to Phase 4 for safety)" — Phase 4 shipped year + genre writes and they're in production.
+  - PLC: added missing `## Current Priority / Next Actions` section, drafted from the open Phase 2/3 items in PLANNING (BPM/key audit, BPM tagging, mixer export-back, candidate-library re-enable).
+  - PLC: added Phase 5 (Rust engine) to the Completed Phases list.
+  - PLC: archived 7 older session entries (2026-02-14 through 2026-02-17 late-night) to new `docs/SESSION-LOG.md` per the 5-most-recent-OR-3-months retention rule. PLC keeps the 12 entries from 2026-02-18 onward (plus today).
+- 📌 **Deferred (Tier 3, manual)**: `PLANNING.md` Project Metadata is still missing `Last Renamed:` (project was renamed DJ Music Library Manager → YDJ Music Studio) and carries a non-canonical `**GitHub:**` field that doctrinally belongs in PLC's External References.
+- 📌 **Still drift-prone**: PLC's session log uses `## Recent Session (YYYY-MM-DD)` as separate top-level headings rather than the canonical single `## Recent Sessions` with `### YYYY-MM-DD` subentries. Left as-is for now — loose-match acceptable, restructuring would be churn.
 
 ## Recent Session (2026-05-16)
 - 📌 **Karaoke folder read access**: Added `Read(//Users/fydupre/Music/Karaoke/**)` to project `.claude/settings.local.json` so Claude can read karaoke source files from `~/Music/Karaoke/` without per-prompt approval. Folder stays at its native location (not moved under the project).
@@ -128,68 +149,7 @@ Comprehensive DJ music production and library management system for YDJ, encompa
   - `mixer/create_key_playlists.py` written but unused (Apple Music `duplicate` creates regular playlists, not smart ones)
 - ✅ **AppleScript rename capability confirmed**: can rename any playlist (smart or regular) via `first playlist whose name is "..."` + `set name`
 
-## Recent Session (2026-02-17, late night)
-- ✅ **Held-Karp exact optimizer implemented** (`src/ydj_mixer_engine/src/held_karp.rs`)
-- ✅ DP on bitmask subsets: state (mask, last_track, shift_idx), O(n²·2ⁿ·9)
-- ✅ Backtracking without parent table (searches DP table; all costs are exact half-integers)
-- ✅ `optimize_mix_exact()` exported via PyO3 in `lib.rs`
-- ✅ `mixer.py` dispatch: n ≤ 20 → HK exact; n > 20 → SA; no Rust → Python SA
-- ✅ `USE_RUST_EXACT` flag; `HELD_KARP_MAX_TRACKS = 20` constant
-- ✅ Verified against brute-force: 20 random tests (n=4–6), all match exactly
-- ✅ **Performance: n=17 in 0.43s, n=20 in 4.2s** (global optimum, no time budget needed)
-- ✅ **Improved mix output**: bridge hints now appear as `>> ` rows between tracks
-  - Both harmonic bridges (h_cost ≥ 5) and tempo bridges (t_cost > 0) shown
-  - BPM range = intersection of both neighbors' ±4 BPM windows (correct bridge target)
-  - Keys expanded to all ±1 semitone variants (12 keys for 4 effective keys, no spaces around /)
-  - Format: `>> [label] - keys: K1/K2(+1)/K3(-1)/... - BPM xxx`
-- ✅ `run-mixer.sh`: added `source "$HOME/.cargo/env"` so Rust engine loads correctly
-- ✅ `HELD-KARP-PLAN.md` status updated to COMPLETE
-- ✅ `OPTIMIZER-PLAN.md` updated with Phase C entry
-- **Build command**: `cd src/ydj_mixer_engine && maturin develop --release`
-
-## Recent Session (2026-02-17, night)
-- ✅ **Phase 5: Rust SA engine implemented** (`src/ydj_mixer_engine/`)
-- ✅ Rust 1.93.1 + maturin 1.12.2 installed; crate built with PyO3 + rand
-- ✅ `optimize_mix()` in Rust: full timed outer loop, delta cost, escape mode, shift optimization
-- ✅ Python fallback: `USE_RUST = False` if `ydj_mixer_engine` not importable
-- ✅ **Measured speedup: 60x** (Python 0.2 att/s → Rust 12.0 att/s, 17 tracks)
-- ✅ Rust finds better solutions (40.5 vs 44.5 best cost in 10s) due to 40x more attempts
-- ✅ `.gitignore` updated (Rust `target/`), `requirements.txt` updated (maturin)
-- ✅ `OPTIMIZER-PLAN.md` updated with Phase B status and measured results
-- **Build command**: `cd src/ydj_mixer_engine && maturin develop --release`
-
-## Recent Session (2026-02-17, evening)
-- ✅ DOE for SA annealing parameters completed: 9 variations (init temp 300/500/700 × final temp 0.05/0.1/0.15), 879 total attempts
-- ✅ **DOE conclusion**: nominal values (500 → 0.1, 410k iterations) confirmed optimal — no variation statistically better
-- ✅ **Key insight**: solution quality is driven by random initial arrangement, not temperature schedule (Pearson r = -0.135)
-- ✅ Time budget increased from 3 to 5 minutes (~80 attempts for 17 tracks)
-- ✅ DOE results saved to `mixer/doe_temperature_results.csv` (879 rows)
-- ✅ `DOE-ANNEALING-PARAMS.md` updated with full findings
-
-## Previous Session (2026-02-17, morning)
-- ✅ Mixer reads from "Mixer input" Apple Music playlist via AppleScript (no hardcoded track list or XML)
-- ✅ Added BPM, Comments, Rating fields to `load_playlist_from_app()`
-- ✅ Added `load_dj_playlists_from_app()` for candidate library (disabled for now)
-- ✅ Time-budgeted optimizer: runs attempts until time limit instead of fixed count
-- ✅ Bridge key suggestions for high-cost transitions (shows what keys to look for)
-- ✅ 3x penalty for unreachable harmonic transitions
-- ✅ SA performance optimization: delta cost (O(1) vs O(n)), integer key IDs, flat cost arrays → 2.8x speedup
-- ✅ Created OPTIMIZER-PLAN.md (Python + Rust optimization roadmap)
-- ✅ Created DOE-ANNEALING-PARAMS.md (experiment plan for tuning SA parameters)
-
-## Previous Session (2026-02-16)
-- ✅ Added locked fields: consistent metadata preserved, only inconsistent fields resolved
-- ✅ Added targeted web search (Source C) for year-only inconsistency groups
-- ✅ Resolver displays locked fields with "(locked)" indicator
-
-## Previous Session (2026-02-15)
-- ✅ Fixed AppleScript track update reliability with artist+name search fallback
-- ✅ Eliminated dependency on fresh XML exports for track updates
-
-## Previous Session (2026-02-14)
-- ✅ Built interactive inconsistency resolver (detect → research → fix/ignore per group)
-- ✅ Added `add_tracks_to_playlist()` AppleScript capability
-- ✅ Created `/resolve-inconsistencies` slash command (229 groups detected in 8,549 DJ tracks)
+_Older entries (pre-2026-02-18) archived to `docs/SESSION-LOG.md`._
 
 ## Constraints and Conventions
 

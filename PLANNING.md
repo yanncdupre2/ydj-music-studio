@@ -1,7 +1,7 @@
 # YDJ Music Studio
 
 ## Status
-- [x] Planning
+- [ ] Planning
 - [x] In Progress
 - [ ] On Hold
 - [ ] Completed
@@ -11,7 +11,6 @@
 - **Folder:** `ydj-music-studio` (permanent identifier)
 - **Original Name:** DJ Music Library Manager
 - **Current Name:** YDJ Music Studio
-- **Status:** In Progress
 - **Created:** 2026-02-13
 - **GitHub:** https://github.com/yanncdupre2/ydj-music-studio
 
@@ -36,7 +35,6 @@ A comprehensive DJ music production and library management system encompassing t
 - Safe read-only Apple Music integration (initial phase)
 
 ### Out of Scope (Initial Release)
-- Direct Apple Music library write operations (deferred to Phase 4 for safety)
 - Real-time DJ performance tools or live mixing
 - Music streaming service integration beyond metadata lookup
 - Mobile apps or web interfaces
