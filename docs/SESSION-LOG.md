@@ -68,3 +68,12 @@ Oldest entries first.
 - ✅ `HELD-KARP-PLAN.md` status updated to COMPLETE
 - ✅ `OPTIMIZER-PLAN.md` updated with Phase C entry
 - **Build command**: `cd src/ydj_mixer_engine && maturin develop --release`
+
+### 2026-02-18
+- ✅ **Bridge candidate smart playlists**: 24 key-filter playlists + 24 Candidates playlists created in Apple Music
+  - Key-filter naming convention confirmed: `XA or Y(+1) or Z(-1)` where Y/Z are the base keys that reach XA via ±1 semitone shift
+  - Example: `6A or 11A(+1) or 1A(-1)` (not `6A(-1)` — the sign indicates the shift applied to the base key)
+  - Candidates playlists filter: IN key-filter playlist AND IN "DJ All" AND NOT IN "Mixer input"
+  - 22 key-filter playlists created manually; 21 Candidates playlists renamed via AppleScript (`osascript`)
+  - `mixer/create_key_playlists.py` written but unused (Apple Music `duplicate` creates regular playlists, not smart ones)
+- ✅ **AppleScript rename capability confirmed**: can rename any playlist (smart or regular) via `first playlist whose name is "..."` + `set name`

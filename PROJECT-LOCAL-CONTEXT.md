@@ -19,6 +19,17 @@ Open Phase 2 (library management) and Phase 3 (mixer) items per PLANNING.md:
 - **Export optimized playlist back to Apple Music** — write the mixer's optimal order as a new Apple Music playlist (Phase 3 outstanding item).
 - **Candidate library from DJ playlists** — code wired in `mixer/mixer.py` but disabled; revisit when the bridge-selection workflow needs it.
 
+## Recent Session (2026-05-23)
+- ✅ **Doctrine conformance pass** via `/conform-project` (run 1 — created `conform-log.md`):
+  - PLC structure tree: corrected stale paths `common/metadata_utils.py` → `common/load_from_music_app.py`, `library-management/rename_files.py` → `rename_music_file.py`, and the snake_case naming example.
+  - PLC: corrected stale slash-command reference `/update-project-todos` → `/update-project-status`.
+  - `PLANNING.md` Phase 2: collapsed 10 granular dated implementation paragraphs (karaoke v2/GUI/bg-darken/intro-outro/pipe-deadlock fix) into 2 milestone bullets — the detail already lives in this log (dual-rolling-log anti-pattern).
+  - Archived the out-of-window `2026-02-18` session entry to `docs/SESSION-LOG.md` (retention rule; the 12 entries within the 3-month window stay here).
+  - Removed the empty `data/` directory (only an empty gitignored `data/exports/`) to Trash; trimmed its references from the PLC and README structure trees.
+- ✅ **`PLANNING.md` Project Metadata**: set `Last Renamed: 2026-02-13` (was missing; project renamed DJ Music Library Manager → YDJ Music Studio). Date taken from the project stub's last-modified date under gtd-system.
+- 📌 Left intentionally: PLC session-log heading style (`## Recent Session (DATE)` vs canonical `### DATE`) — loose-match acceptable, restructuring is churn. The non-canonical `**GitHub:**` field in PLANNING metadata also remains (harmless).
+- No completions this session (no TODO.md).
+
 ## Recent Session (2026-05-18)
 - ✅ **Doctrine conformance pass** via `/conform-project`:
   - Flipped stub read order in `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` to the canonical sequence (GLOBAL-CONTEXT → PROJECT-LOCAL-CONTEXT → PLANNING).
@@ -140,16 +151,7 @@ Open Phase 2 (library management) and Phase 3 (mixer) items per PLANNING.md:
   - Idempotent (skips already well-formed files), duplicate-safe (adds index suffix)
   - Dry-run by default, `--apply` to rename
 
-## Recent Session (2026-02-18)
-- ✅ **Bridge candidate smart playlists**: 24 key-filter playlists + 24 Candidates playlists created in Apple Music
-  - Key-filter naming convention confirmed: `XA or Y(+1) or Z(-1)` where Y/Z are the base keys that reach XA via ±1 semitone shift
-  - Example: `6A or 11A(+1) or 1A(-1)` (not `6A(-1)` — the sign indicates the shift applied to the base key)
-  - Candidates playlists filter: IN key-filter playlist AND IN "DJ All" AND NOT IN "Mixer input"
-  - 22 key-filter playlists created manually; 21 Candidates playlists renamed via AppleScript (`osascript`)
-  - `mixer/create_key_playlists.py` written but unused (Apple Music `duplicate` creates regular playlists, not smart ones)
-- ✅ **AppleScript rename capability confirmed**: can rename any playlist (smart or regular) via `first playlist whose name is "..."` + `set name`
-
-_Older entries (pre-2026-02-18) archived to `docs/SESSION-LOG.md`._
+_Earlier entries (2026-02-18 and before) archived to `docs/SESSION-LOG.md`._
 
 ## Constraints and Conventions
 
@@ -172,7 +174,7 @@ _Older entries (pre-2026-02-18) archived to `docs/SESSION-LOG.md`._
 
 ### File Naming
 - Use kebab-case for folders: `library-management`, `ydj-music-studio`
-- Python modules: snake_case (e.g., `apple_music.py`, `metadata_utils.py`)
+- Python modules: snake_case (e.g., `apple_music.py`, `load_from_music_app.py`)
 - Shell scripts: snake_case with `.sh` extension
 
 ## Architecture / Key Paths
@@ -191,7 +193,7 @@ ydj-music-studio/
 │
 ├── common/                        # Shared utilities across subprojects
 │   ├── apple_music.py             # XML reader (future: AppleScript integration)
-│   ├── metadata_utils.py          # Common metadata operations
+│   ├── load_from_music_app.py     # Batched Apple Music playlist reader
 │   ├── genres.json                # Canonical 31-genre taxonomy
 │   └── README.md
 │
@@ -205,7 +207,7 @@ ydj-music-studio/
 ├── library-management/            # Tagging, cleanup, organization
 │   ├── CLAUDE.md                  # Library mgmt AI context
 │   ├── cleanup.py                 # Discrepancy finder and resolver
-│   ├── rename_files.py            # File renamer based on metadata
+│   ├── rename_music_file.py       # File renamer based on metadata
 │   ├── tag_updater.py             # Batch tag updates (TBD)
 │   └── README.md
 │
@@ -218,9 +220,6 @@ ydj-music-studio/
 │   ├── reencode_all_mkv.sh        # Batch transcoding
 │   ├── convert_opus_to_aac.sh     # Opus→AAC audio conversion
 │   └── README.md
-│
-├── data/                          # Working data files
-│   └── exports/                   # Apple Music XML exports (gitignored, optional)
 │
 ├── venv/                          # Python virtual environment (gitignored)
 ├── karaoke-processing/            # Karaoke video processing batch tool
@@ -375,7 +374,7 @@ cd src/ydj_mixer_engine && maturin develop --release
 - `/fill-missing-genres-years` — End-to-end workflow: research → LLM/web fill → interactive tagging
 - `/resolve-inconsistencies` — Detect and resolve year/genre conflicts across track variants (229 groups)
 - `/rebaseline-project` — Update docs and commit to GitHub
-- `/update-project-todos` — Sync Todoist
+- `/update-project-status` — Session-start sync (Todoist reconcile, light freshness checks)
 
 ## Notes
 - Smart playlist "Genre or Year Blank" drives the missing-metadata tagging workflow

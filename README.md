@@ -109,8 +109,7 @@ ydj-music-studio/
 ├── library-management/  # Tagging, cleanup, inconsistency resolver
 ├── downloads/           # YouTube media processing (rename, MKV/Opus conversion)
 ├── karaoke-processing/  # karaoke-process script + SwiftUI GUI + reference doc
-├── src/ydj_mixer_engine/# Rust SA + Held-Karp engine (PyO3/maturin)
-└── data/                # Working data (XML exports, CSVs)
+└── src/ydj_mixer_engine/# Rust SA + Held-Karp engine (PyO3/maturin)
 ```
 
 Each subfolder contains its own `CLAUDE.md` for focused AI agent context and domain-specific README.
