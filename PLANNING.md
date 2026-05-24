@@ -13,6 +13,8 @@
 - **Current Name:** YDJ Music Studio
 - **Created:** 2026-02-13
 - **Last Renamed:** 2026-02-13
+- **Todoist Project ID:** 6ghVHmCJ3F5RJHhq
+- **Todoist Project Name:** YDJ Music Studio
 - **GitHub:** https://github.com/yanncdupre2/ydj-music-studio
 
 ## Vision and Scope
@@ -63,101 +65,27 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - Need efficient batch conversion to Apple-compatible formats (MP4/M4A)
 - Want quick preview capability on macOS (QuickLook doesn't support MKV well)
 
-## Strategy and Phases
+## Strategy and Breakdown
 
-### Phase 1: Foundation & Organization (Complete)
-**Goal:** Establish clean modular structure and migrate existing tools
+The project spans five areas with no fixed sequencing — each evolves independently.
 
-- ✅ Organize existing scripts into modular subfolder structure
-- ✅ Extract canonical 31-genre taxonomy from library to `common/genres.json`
-- ✅ Create shared Apple Music XML reader in `common/`
-- ✅ Set up Git repository and push to GitHub
-- ✅ Create fresh Python virtual environment with requirements.txt
-- ✅ Move existing YDJ folder contents into organized structure
+### Mixer — playlist optimization
+Harmonic mixing (Camelot wheel + ±1 semitone shifts) and BPM continuity, solved as a track-ordering optimization. Rust engine via PyO3/maturin: simulated annealing for large sets, Held-Karp exact for n ≤ 20; Python fallback when the Rust module isn't built. Reads the "Mixer input" Apple Music playlist live; emits a timestamped mix with bridge key/BPM hints.
+**Open:** export the optimized order back to Apple Music as a new playlist.
 
-**Success Criteria:**
-- ✅ Clean separation: mixer/, library-management/, downloads/, common/
-- ✅ Each subfolder has focused CLAUDE.md for AI agent context
-- ✅ All existing scripts functional in new structure
+### Library — metadata management
+Consistent metadata across a ~10k-track Apple Music library: a canonical 31-genre compound taxonomy, 4-source consensus genre/year tagging (duplicates / LLM / web / MusicBrainz), and interactive inconsistency resolution. Live AppleScript reads/writes for year + genre, validated and in production use.
+**Open:** audit + fill missing BPM and Camelot key.
 
-### Phase 2: Library Management Enhancement (In Progress)
-**Goal:** Improve metadata quality and consistency across library
+### Downloads — YouTube media processing
+yt-dlp acquisition (h264/1080p, Safari cookies) → rename to `Artist - Title (type)` using a live Apple Music artist list → MKV→MP4 remux and Opus→AAC conversion for Apple compatibility. Essentially complete.
 
-- ✅ LLM-powered genre auto-tagging using canonical 31-genre taxonomy (4-source consensus system)
-- ✅ Batch year lookup from MusicBrainz (Source D)
-- ✅ Duplicate-based metadata inference (Source A)
-- ✅ Web search + LLM knowledge for gap-filling (Sources B + C)
-- ✅ Interactive single-keypress tagger (`tag_tracks.py`)
-- ✅ `/fill-missing-genres-years` slash command for streamlined workflow
-- ✅ Interactive inconsistency resolver for track variants (`resolve_inconsistencies.py` + `resolve_tagger.py`)
-- ✅ Add-to-playlist AppleScript capability (`add_tracks_to_playlist()` in `common/apple_music.py`)
-- ✅ `/resolve-inconsistencies` slash command (229 groups detected across 8,549 DJ tracks)
-- ✅ AppleScript artist+name search (eliminates stale XML database ID dependency)
-- ✅ Locked fields: consistent metadata preserved, only inconsistent fields resolved
-- ✅ Targeted web search (Source C) for year-only inconsistencies to avoid MusicBrainz reissue years
-- ✅ Live AppleScript artist fetch (`get_all_artists_from_app()`) — eliminates stale CSV dependency in `rename_youtube.py`
-- ✅ Karaoke filename support (`[Karaoke]` brackets) + aggressive noise stripping for branded karaoke channels
-- ✅ Karaoke video enhancement pipeline (`karaoke-process`, consolidated from the v2 prototype on 2026-05-09): luminance-LUT 3-band mapping with edge masking, plus intro/outro preserve-or-blackout, zoom in/out, inverted-band polarity, outline halo, background darken, `--no-lut` multi-color mode, `--sung-color`, and `-o OUTPUT_DIR`. SwiftUI GUI front-end (`karaoke-process-gui/`) with live previews, persisted presets, a foreground progress bar, and a Finder Quick Action wrapper. Per-session implementation notes live in PROJECT-LOCAL-CONTEXT.md.
-- ✅ Batched Apple Music playlist reader (`load_playlist_from_music_app()` in `common/load_from_music_app.py`) — reads any named or smart playlist in 100-track batches.
-- 🚧 Audit library metadata quality (missing BPMs, keys)
-- BPM detection and tagging for tracks missing tempo data
+### Karaoke — video prep for FCP overlay
+`karaoke-process` (bash + ffmpeg): luminance-LUT 3-band pipeline with edge masking, intro/outro preserve-or-blackout, zoom, inverted-band polarity, outline halo, background darken, and a `--no-lut` multi-color mode, plus a SwiftUI GUI front-end with live previews and persisted presets. Mature and in use.
 
-**Success Criteria:**
-- ✅ All YDJ MASTER playlist tracks have genre and year set
-- ✅ Consistent genre categorization using compound taxonomy
-- ✅ Interactive cleanup workflow for resolving discrepancies (Fix/Ignore/Skip per group)
-- ✅ Reliable track updates regardless of XML export freshness
-
-### Phase 3: Mixer Improvements (In Progress)
-**Goal:** Make playlist optimization more seamless and practical
-
-- ✅ Dynamic playlist input: reads from "Mixer input" Apple Music playlist via AppleScript (no more hardcoded track list or XML)
-- ✅ Added BPM, Comments, Rating fields to AppleScript playlist reader
-- ✅ Time-budgeted optimizer: runs annealing attempts until time limit (default 5 min) instead of fixed attempt count
-- ✅ Bridge key suggestions: for high-cost transitions, shows what keys an inserted track should have
-- ✅ 3x penalty for unreachable harmonic transitions (was 2x) to minimize H=15 transitions
-- ✅ Python-level SA optimization: delta cost evaluation (O(1) vs O(n) per iteration) + integer key lookups + flat cost arrays → 2.8x speedup
-- ✅ DOE for annealing parameters: 9 variations (3 initial temps × 3 final temps), 879 attempts — nominal values (500 → 0.1, 410k iterations) confirmed optimal
-- ✅ Held-Karp exact optimizer: guarantees global optimum for n ≤ 20 tracks (< 1s for n=17)
-- ✅ Improved mix output: bridge hints appear as `>>` rows between tracks (harmonic + tempo); BPM range uses intersection of both neighbors' windows; keys expanded to all ±1 semitone variants
-- ✅ Ascending-BPM presentation: optimal order is reversed when the last half averages a lower BPM than the first half. The transition cost function is symmetric and shifts are per-track, so the reversed order has identical cost — picking ascending trend is a free presentation choice.
-- ✅ Per-run text export: writes `mixer/mix_YYYY-MM-DD_HH-MM-SS.txt` after each run with position, BPM, shift, original/effective Camelot keys, and `Artist - Title`. Files are timestamped (no overwrites) and gitignored.
-- Export optimized playlist back to Apple Music
-- Candidate library from DJ playlists (code ready, disabled)
-
-**Success Criteria:**
-- ✅ Optimize playlist directly from Apple Music playlist name
-- ✅ Improve performance by 2-3x through algorithmic optimization (achieved 2.8x)
-- ✅ DOE validated annealing parameters (no further tuning needed)
-- ✅ Exact global optimum for playlists ≤ 20 tracks (Held-Karp)
-- Export results back to Apple Music as new playlist
-
-### Phase 4: Safe Apple Music Write Testing (Complete)
-**Goal:** Enable direct library modification without risk
-
-- ✅ Research AppleScript/JXA capabilities for Apple Music
-- ✅ Implement safe write operations with validation
-- ✅ AppleScript integration working for year and genre updates
-- ✅ Gradual rollout to production library (used successfully on 14+ tracks)
-
-**Success Criteria:**
-- ✅ Can safely update track metadata (year, genre) via AppleScript
-- ✅ Validation ensures no data corruption
-- Backup/restore workflow documented and tested
-
-### Phase 5: Rust Performance Engine (Complete)
-**Goal:** 50-100x performance improvement for large playlists
-
-- ✅ Port SA optimization loop to Rust via PyO3/maturin
-- ✅ Python handles I/O (Apple Music, printing), Rust handles compute
-- ✅ Precomputed integer tables passed from Python; Rust is a pure optimization engine
-- ✅ Detailed plan and results in `mixer/OPTIMIZER-PLAN.md`
-
-**Success Criteria:**
-- ✅ Rust engine produces equivalent results to Python version
-- ✅ 60x throughput improvement measured (0.2 → 12.0 att/s); 3,561 attempts in 5 min vs ~80 Python
-- ✅ Fallback to Python SA loop when Rust module not installed
-- ✅ Seamless integration: `maturin develop --release` to build, same `mixer.py` entry point
+### Infra — shared utilities & safety
+Shared Apple Music access (`common/`), the canonical genre taxonomy, the Python venv + Rust build, and library-write safety.
+**Open:** a documented, tested Apple Music backup/restore workflow before further bulk writes.
 
 ## Key Decisions and Rationale
 
@@ -224,7 +152,7 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 
 **Date:** 2026-04-28
 
-### Decision: Held-Karp Exact Optimizer (Phase C)
+### Decision: Held-Karp Exact Optimizer
 **Context:** Rust SA engine runs 3,561 attempts in 5 min but still cannot guarantee the global optimum. With 17 tracks, SA found best cost 40.5 over thousands of attempts; Held-Karp found 40.5 in 0.43s — guaranteed optimal.
 
 **Decision:** Add Held-Karp DP optimizer in Rust alongside SA. Dispatch: n ≤ 20 → Held-Karp (exact, seconds); n > 20 → SA (probabilistic, time-budgeted).
@@ -239,7 +167,7 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 
 **Date:** 2026-02-17
 
-### Decision: Rust SA Engine via PyO3 (Phase 5)
+### Decision: Rust SA Engine via PyO3
 **Context:** Python SA loop had been fully optimized (delta cost, integer arrays, swap-undo) but was still limited to ~80 attempts in 5 minutes for a 17-track playlist. DOE confirmed solution quality scales with attempt count, not temperature schedule.
 
 **Decision:** Port the entire SA inner loop (including timed outer multi-attempt loop) to Rust via PyO3/maturin. Python continues to own all I/O and reporting; precomputed tables are passed as flat Python lists.
@@ -350,7 +278,7 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 - **Python 3.x**: Core scripting language for automation
 - **Apple Music XML Export**: Manual export required; need to keep up-to-date
 
-### External APIs (Future Phases)
+### External APIs (Future)
 - MusicBrainz API (release dates, genres)
 - Discogs API (vinyl/DJ metadata)
 - Spotify API (audio features, genres)
@@ -358,33 +286,11 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 
 ## Success Criteria
 
-### Phase 1 (Foundation)
-- ✅ Clean modular structure (mixer/, library-management/, downloads/, common/)
-- ✅ Genre taxonomy extracted and stored in `common/genres.json`
-- ✅ Git repository initialized and pushed to GitHub
-- ✅ All existing scripts functional in new structure
-
-### Phase 2 (Library Management)
-- <5% of library missing critical metadata (year, genre)
-- Duplicate detection identifies all track variants
-- LLM genre tagging achieves 90%+ agreement with manual tagging
-- Interactive cleanup workflow handles 20+ discrepancies/minute
-
-### Phase 3 (Mixer)
-- Optimize playlist from Apple Music playlist name (no hardcoding)
-- Export results back to Apple Music as new playlist
-- 2-3x performance improvement (10-15 minutes for 30 songs)
-- Visual flow chart shows harmonic/tempo transitions
-
-### Phase 4 (Safe Write)
-- Zero data loss or corruption incidents in test library (100+ write operations)
-- Backup/restore workflow tested and documented
-- Production library updates validated against XML export
-
-### Phase 5 (Rust Engine)
-- ✅ 60x throughput improvement (3,561 attempts in 5 min vs ~80 Python)
-- ✅ Equivalent optimization results vs. Python (verified on smoke test + live run)
-- ✅ Seamless Python wrapper integration via PyO3/maturin with ImportError fallback
+- **Mixer:** optimizes directly from an Apple Music playlist name (no hardcoding) and writes the result back as a new playlist; exact optimum for n ≤ 20.
+- **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy.
+- **Downloads:** files land in Apple-compatible formats with consistent `Artist - Title (type)` names.
+- **Karaoke:** overlays render predictably for FCP `screen`/`add` blending across the channels in use.
+- **Infra:** no data-loss incidents from library writes; backup/restore documented and tested.
 
 ## Open Questions
 

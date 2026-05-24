@@ -1,6 +1,6 @@
 # YDJ Music Studio
 
-**Status:** In Progress — Phases 1, 4, and 5 complete; Phases 2 and 3 ongoing.
+**Status:** In Progress — mixer & library actively evolving; downloads & karaoke mature.
 
 A comprehensive DJ music production and library management system for organizing, tagging, and optimizing music collections. Combines intelligent playlist optimization (with a Rust SA + Held-Karp engine), automated metadata management for Apple Music libraries, YouTube media processing, and karaoke video preparation for FCP overlay blending.
 
@@ -116,21 +116,19 @@ Each subfolder contains its own `CLAUDE.md` for focused AI agent context and dom
 
 ## Documentation
 
-- **[PLANNING.md](PLANNING.md)** - Full project vision, strategy, and 5-phase roadmap
+- **[PLANNING.md](PLANNING.md)** - Full project vision, strategy, and area breakdown
 - **[PROJECT-LOCAL-CONTEXT.md](PROJECT-LOCAL-CONTEXT.md)** - Current execution context, architecture, and next actions
 - **Subfolder READMEs** - Domain-specific documentation for mixer, library-management, downloads
 
-## Development Status
+## Status by Area
 
-- ✅ **Phase 1** — Foundation & organization (modular structure, genres taxonomy, Git/GitHub)
-- 🚧 **Phase 2** — Library management (tagging + inconsistency resolution shipping; BPM/key auditing pending)
-- 🚧 **Phase 3** — Mixer enhancements (live AppleScript playlist input, bridge hints; export-back-to-Apple-Music pending)
-- ✅ **Phase 4** — Safe AppleScript writes for year + genre (validated; in production use)
-- ✅ **Phase 5** — Rust performance engine (60x SA throughput, Held-Karp exact for n ≤ 20)
+- **Mixer** — Rust SA + Held-Karp engine (60x throughput; exact for n ≤ 20), live "Mixer input" playlist read, timestamped mix output with bridge hints. Open: export the optimized order back to Apple Music.
+- **Library** — 4-source genre/year tagging, inconsistency resolver, live AppleScript year+genre writes (in production). Open: audit + fill missing BPM/key.
+- **Downloads** — complete: yt-dlp rename to `Artist - Title (type)` + MKV→MP4 / Opus→AAC conversion.
+- **Karaoke** — `karaoke-process` script (`~/.local/bin/karaoke-process`) + SwiftUI GUI (`/Applications/KaraokeProcessGUI.app`), mature and in use.
+- **Infra** — shared `common/` utilities, genre taxonomy, venv + Rust build. Open: Apple Music backup/restore workflow.
 
-Karaoke processing (cross-cutting): single canonical `karaoke-process` script in production at `~/.local/bin/karaoke-process` with SwiftUI front-end at `/Applications/KaraokeProcessGUI.app`.
-
-See [PLANNING.md](PLANNING.md) for full roadmap and [PROJECT-LOCAL-CONTEXT.md](PROJECT-LOCAL-CONTEXT.md) for immediate next actions.
+See [PLANNING.md](PLANNING.md) for the design breakdown and [PROJECT-LOCAL-CONTEXT.md](PROJECT-LOCAL-CONTEXT.md) for current state.
 
 ## Technology Stack
 
