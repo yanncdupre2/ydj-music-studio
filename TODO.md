@@ -9,7 +9,7 @@ Backlog for the YDJ Music Studio project. Items are tagged by area:
 _(nothing in flight — promote an item from Next when you start it)_
 
 ## Next
-- [ ] [library] Audit metadata quality — surface tracks missing BPM or key data
+- [ ] [library] Audit metadata quality - surface tracks missing BPM or key data
 - [ ] [mixer] Export the optimized order back to Apple Music as a new playlist
 
 ## Later

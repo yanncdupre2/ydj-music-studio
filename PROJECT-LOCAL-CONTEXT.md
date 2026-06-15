@@ -14,9 +14,19 @@ Comprehensive DJ music production and library management system for YDJ, encompa
 
 ## Current Priority / Next Actions
 
-*(none — mirrors TODO.md `## Now`, currently empty. The backlog lives in `TODO.md`, tagged by area: `[mixer]` `[library]` `[downloads]` `[karaoke]` `[infra]`.)*
+*(none — mirrors TODO.md `## Now`)*
 
 ## Recent Sessions
+
+### 2026-06-14
+- ✅ **Doctrine conformance pass** via `/conform-project` (run 2) — 3 findings, all fixed:
+  - PLC §2.6 — collapsed the Current Priority empty-state to the canonical minimal form `*(none — mirrors TODO.md ## Now)*` (was verbose with area-tag legend + backlog-location hint; drift-prone per doctrine).
+  - PLC §2.9.5 — qualified `sources/musicbrainz.py` → `library-management/sources/musicbrainz.py` in External APIs (consistency with the Key Files entry).
+  - TODO.md line 12 — auto-fixed `non-ascii:em-dash` on the metadata-quality audit item: `—` → ` - `.
+- ✅ **Added Doctrine Compliance stamp** at EOF of PROJECT-LOCAL-CONTEXT.md (`v2.1`, `2026-06-14`) per DOCTRINE.md §8.1.
+- ✅ **conform-log.md** — appended run 2 entry; bumped frontmatter to `last_conformed: 2026-06-14`, `conform_runs: 2`.
+- 📌 **Improvements landed since run 1** (informational, not findings this pass): Project Metadata's `Last Renamed` populated, Todoist Project ID/Name present, and the Recent Sessions log already restructured to canonical `## Recent Sessions` + `### YYYY-MM-DD` (resolved a "still drift-prone" item from run 1).
+- No TODO.md `## Done` items to drain (no completions this session).
 
 ### 2026-05-23
 - ✅ **Doctrine conformance pass** via `/conform-project` (run 1 — created `conform-log.md`):
@@ -368,7 +378,7 @@ cd src/ydj_mixer_engine && maturin develop --release
 - **Working Directory**: Downloads happen outside repo; scripts process in-place
 
 ### External APIs
-- ✅ MusicBrainz: Release dates, genres (integrated in `sources/musicbrainz.py`, 1 req/sec rate limit)
+- ✅ MusicBrainz: Release dates, genres (integrated in `library-management/sources/musicbrainz.py`, 1 req/sec rate limit)
 - Discogs: DJ-focused metadata (future)
 - Spotify: Audio features, modern genres (future)
 - Last.fm: Genre tags, similar artists (future)
@@ -384,3 +394,7 @@ cd src/ydj_mixer_engine && maturin develop --release
 - "Ignore year or genre inconsistencies" playlist filters out already-resolved groups
 - Interactive scripts (`tag_tracks.py`, `resolve_tagger.py`) require a real TTY — run via `run-tagger.sh` / `run-resolver.sh`
 - XML export (`~/YDJ Library.xml`) used for bulk detection; AppleScript used for reads/writes
+
+## Doctrine Compliance
+- **Last conformed:** v2.1 (2026-06-14)
+- **Conform-log:** present (see conform-log.md)
