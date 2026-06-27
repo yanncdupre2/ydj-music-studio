@@ -1,0 +1,20 @@
+schema_version = 1
+
+[portfolio]
+root = "../gtd-system/cutover/production-portfolio-batch1"
+
+[project]
+metadata_source = "PLANNING.md"
+todo_source = "TODO.md"
+context_source = "PROJECT-LOCAL-CONTEXT.md"
+
+[repository]
+local_only = false
+remote_name = "origin"
+
+[providers]
+claude = true
+gemini = false
+
+[todoist]
+enabled = false

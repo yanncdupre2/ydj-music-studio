@@ -63,3 +63,8 @@ DerivedData/
 # macOS crash reports (machine-specific debug data)
 crash-reports/
 *.ips
+
+# GTD defaults
+Thumbs.db
+**/data/
+.git-crypt-key-location.md

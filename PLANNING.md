@@ -5,25 +5,23 @@
 - [x] In Progress
 - [ ] On Hold
 - [ ] Completed
+- [ ] Cancelled
 
 ## Project Metadata
 - **Project Number:** 02
-- **Folder:** `ydj-music-studio` (permanent identifier)
-- **Original Name:** DJ Music Library Manager
-- **Current Name:** YDJ Music Studio
+- **Folder:** `ydj-music-studio`
 - **Created:** 2026-02-13
-- **Last Renamed:** 2026-02-13
-- **Todoist Project ID:** 6ghVHmCJ3F5RJHhq
-- **Todoist Project Name:** YDJ Music Studio
-- **GitHub:** https://github.com/yanncdupre2/ydj-music-studio
+- **Portfolio Area:** Creative & Media
 
-## Vision and Scope
+## Objective
 
 A comprehensive DJ music production and library management system encompassing three interconnected domains:
 
 1. **Intelligent Playlist Optimization** - Harmonic mixing and BPM continuity using Camelot wheel system and simulated annealing
 2. **Automated Library Management** - Metadata tagging, cleanup, and LLM-powered genre categorization for Apple Music library
 3. **Efficient Media Processing** - YouTube download, conversion, karaoke video enhancement, and optimization for Apple ecosystem compatibility
+
+## Scope
 
 ### In Scope
 - Harmonic mixing optimizer using Camelot wheel and key shifting

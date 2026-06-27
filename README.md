@@ -1,7 +1,5 @@
 # YDJ Music Studio
 
-**Status:** In Progress — mixer & library actively evolving; downloads & karaoke mature.
-
 A comprehensive DJ music production and library management system for organizing, tagging, and optimizing music collections. Combines intelligent playlist optimization (with a Rust SA + Held-Karp engine), automated metadata management for Apple Music libraries, YouTube media processing, and karaoke video preparation for FCP overlay blending.
 
 ## Overview

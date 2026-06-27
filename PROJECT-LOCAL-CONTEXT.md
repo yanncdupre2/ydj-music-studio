@@ -12,10 +12,6 @@ Comprehensive DJ music production and library management system for YDJ, encompa
 - **Karaoke:** `karaoke-process` script + SwiftUI GUI mature and in use.
 - **Infra:** shared `common/` utils, genre taxonomy, venv + Rust build in place. Open: Apple Music backup/restore workflow.
 
-## Current Priority / Next Actions
-
-*(none — mirrors TODO.md `## Now`)*
-
 ## Recent Sessions
 
 ### 2026-06-14
@@ -394,7 +390,3 @@ cd src/ydj_mixer_engine && maturin develop --release
 - "Ignore year or genre inconsistencies" playlist filters out already-resolved groups
 - Interactive scripts (`tag_tracks.py`, `resolve_tagger.py`) require a real TTY — run via `run-tagger.sh` / `run-resolver.sh`
 - XML export (`~/YDJ Library.xml`) used for bulk detection; AppleScript used for reads/writes
-
-## Doctrine Compliance
-- **Last conformed:** v2.1 (2026-06-14)
-- **Conform-log:** present (see conform-log.md)
