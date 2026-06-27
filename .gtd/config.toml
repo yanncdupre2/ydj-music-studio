@@ -17,4 +17,7 @@ claude = true
 gemini = false
 
 [todoist]
-enabled = false
+enabled = true
+destination = "project"
+project_id = "6ghVHmCJ3F5RJHhq"
+token_env = "TODOIST_API_TOKEN"
