@@ -118,7 +118,7 @@ Comprehensive DJ music production and library management system for YDJ, encompa
   - Karaoke files now get `[Karaoke]` (square brackets) instead of `(Karaoke)` (parens) — visually distinguishes karaoke from video files
   - `BAD_CHARS_RE` updated to preserve brackets (was stripping them); `OUR_OUTPUT_TAGS` regex now matches any combination of `(Video)`, `(Lyrics Video)`, `[Karaoke]`, and `(N)` index suffixes
   - Aggressive karaoke-noise stripping: 7 patterns + branded channel list (KaraFun, Zoom Karaoke, Sing King, Musisi, Party Tyme) handle fullwidth brackets `【】`, embedded pipes, trailing dash segments, "Karaoke Version from..." suffixes
-  - Fullwidth char mappings added: `\u3010` `\u3011` `\u29f8` etc.
+  - Fullwidth char mappings added: `U+3010` `U+3011` `U+29F8` etc.
   - Tested on 16 newly-downloaded karaoke files — all renamed cleanly
 - ✅ **Live Apple Music artist fetch** (replaces stale CSV dependency):
   - New helper `get_all_artists_from_app()` in `common/apple_music.py` — bulk AppleScript property fetch with `---SEP---` separator, ~5s for 3,770 artists
@@ -161,6 +161,34 @@ Comprehensive DJ music production and library management system for YDJ, encompa
   - Dry-run by default, `--apply` to rename
 
 _Earlier entries (2026-02-18 and before) archived to `docs/SESSION-LOG.md`._
+
+### 2026-06-27 — Session close
+
+<!-- gtd-session: 238bfc81-c404-491a-bbd1-6f766ecc299e -->
+
+**Outcomes:**
+- Implemented mixer export-back to Apple Music (mixer/mixer.py --export); verified live end-to-end with order preserved.
+- Reworked the per-run mix report into Markdown (mixer/mixes/mix_*.md), persisting per-track key shifts and bridge/insertion recommendations.
+- Fixed literal backslash-u escape sequences in PROJECT-LOCAL-CONTEXT.md that blocked the gtd session-close transaction.
+
+**Decisions:**
+- Export is opt-in via --export, not automatic, to respect the project's safety-first stance on live-library mutation.
+- Exported playlists use a timestamped name to avoid duplicate-append and to match the mix-file scheme.
+- One always-written Markdown artifact per run (not a separate companion doc); the .txt report format is retired.
+- Generated mixes live in a dedicated gitignored mixer/mixes/ folder.
+
+**Completed tasks:**
+- [mixer] Export the optimized order back to Apple Music as a new playlist
+
+**Unresolved:**
+- Underlying gtd-system bug: session-close regex replacement chokes on literal backslash-u text in retained Recent Sessions entries; to be fixed in the gtd tool separately.
+- mixer/CLAUDE.md still lists export-back under Future Development - fold into next /rebaseline-project.
+- Cosmetic: Shift column renders +0 for unshifted tracks (consistent with console; leave or blank-out later).
+- Two test playlists remain in Apple Music for the user to delete at leisure.
+
+**Possible next-session objectives:**
+- [library] Audit metadata quality - surface tracks missing BPM or key data (recommended)
+- [infra] Apple Music backup/restore workflow before bulk library writes
 
 ## Constraints and Conventions
 

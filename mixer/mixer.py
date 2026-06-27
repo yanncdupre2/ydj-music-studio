@@ -25,7 +25,7 @@ except ImportError:
     USE_RUST_EXACT = False
     print("Rust SA engine not available — using Python SA loop")
 
-from common.apple_music import load_playlist_from_app
+from common.apple_music import load_playlist_from_app, add_tracks_to_playlist
 from camelot import parse_camelot, shift_camelot_key, extract_key_from_comments, camelot_to_pitch, pitch_to_camelot
 
 import unicodedata
@@ -72,6 +72,10 @@ _parser = argparse.ArgumentParser(description="YDJ Mixer — playlist optimizer"
 _parser.add_argument(
     "minutes", type=float, nargs="?", default=None,
     help=f"Optimization time in minutes (default: {OPTIMIZER_TIME_LIMIT_MINUTES})"
+)
+_parser.add_argument(
+    "--export", action="store_true",
+    help="Write the optimized order back to Apple Music as a new timestamped playlist"
 )
 _args = _parser.parse_args()
 if _args.minutes is not None:
@@ -228,6 +232,7 @@ for _, row in mix_input_df.iterrows():
         print(f"WARNING: No valid key for track: {row['Name']} - {row['Artist']}")
         continue
     mix_tracks_data.append({
+        "track_id": row["Track ID"],
         "title": row["Name"],
         "artist": row["Artist"],
         "bpm": row["BPM"],
@@ -850,6 +855,7 @@ if n >= 2:
 
 print("\nFinal Mix Order:")
 _thresh_int = int(TEMPO_THRESHOLD)  # 4 — integer BPM tolerance for display
+_bridges = []  # captured (pos_a, pos_b, label, keys_str, bpm_range) for the .md report
 
 for pos, idx in enumerate(global_overall_best_order):
     track = mix_tracks_data[idx]
@@ -922,6 +928,7 @@ for pos, idx in enumerate(global_overall_best_order):
             else:
                 label = f"harmonic bridge {prev_eff}->{effective_key}"
             print(f"   >> [{label}] - keys: {keys_str} - {bpm_range}")
+            _bridges.append((pos, pos + 1, label, keys_str, bpm_range))
 
         else:
             # Pure tempo bridge: keys compatible with prev_eff
@@ -950,33 +957,65 @@ for pos, idx in enumerate(global_overall_best_order):
                 bpm_range = f"BPM {_lo}-{_hi}"
 
             direction = "up" if bpm > prev_bpm else "down"
-            print(f"   >> [tempo bridge {prev_bpm}->{bpm} ({direction})] - keys: {keys_str} - {bpm_range}")
+            label = f"tempo bridge {prev_bpm}->{bpm} ({direction})"
+            print(f"   >> [{label}] - keys: {keys_str} - {bpm_range}")
+            _bridges.append((pos, pos + 1, label, keys_str, bpm_range))
 
     print(f"{pos+1:2d}. {bpm_str:<7s}  {key_str:<10s} -> {eff_key_str:<5s}  {trans_info:<20s}  {track['title']} - {track['artist']}")
 
 
 ###############################
-# 7b. Write Final Mix to Text File
+# 7b. Write Final Mix to Markdown File
 ###############################
 
 _timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
-_output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            f"mix_{_timestamp}.txt")
+_mixes_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mixes")
+os.makedirs(_mixes_dir, exist_ok=True)
+_output_path = os.path.join(_mixes_dir, f"mix_{_timestamp}.md")
 with open(_output_path, "w", encoding="utf-8") as _f:
-    _f.write("# YDJ Mixer — Final Mix Order\n")
-    _f.write(f"# Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-    _f.write(f"# Tracks: {n}  Cost: {global_overall_best_cost:.1f} "
-             f"(H={h_best:.1f}, T={t_best:.1f}, S={s_best:.1f})\n")
-    _f.write("#\n")
-    _f.write("# Pos  BPM  Shift  OrigKey  EffKey  Track\n")
+    _f.write(f"# YDJ Mix — {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+    _f.write(f"**Tracks:** {n} · **Cost:** {global_overall_best_cost:.1f} "
+             f"(H {h_best:.1f}, T {t_best:.1f}, S {s_best:.1f})\n\n")
+    _f.write("Shift = semitone key adjustment applied to the track "
+             "(−1 / 0 / +1); Eff = resulting effective Camelot key.\n\n")
+    _f.write("## Order\n\n")
+    _f.write("| # | BPM | Key | Shift | Eff | Track |\n")
+    _f.write("|--:|--:|:--|:--:|:--|:--|\n")
     for _pos, _idx in enumerate(global_overall_best_order):
         _track = mix_tracks_data[_idx]
         _s = global_overall_best_shifts[_idx]
         _eff = shift_camelot_key(_track['camelot'], _s)
-        _f.write(f"{_pos+1:>4d}  {_track['bpm']:>3d}   {_s:+d}    "
-                 f"{_track['camelot']:<7s} {_eff:<6s}  "
-                 f"{_track['artist']} - {_track['title']}\n")
+        _label = f"{_track['artist']} - {_track['title']}".replace("|", "\\|")
+        _f.write(f"| {_pos+1} | {_track['bpm']} | {_track['camelot']} | "
+                 f"{_s:+d} | {_eff} | {_label} |\n")
+    _f.write("\n## Bridges & Insertions\n\n")
+    if _bridges:
+        _f.write("Suggested bridge tracks to insert at high-cost transitions "
+                 "(target BPM range and compatible keys):\n\n")
+        for _a, _b, _blabel, _keys, _brange in _bridges:
+            _f.write(f"- **Between #{_a} and #{_b}** — {_blabel} · "
+                     f"keys: {_keys} · {_brange}\n")
+    else:
+        _f.write("_None — all transitions are within the harmonic and tempo "
+                 "thresholds._\n")
 print(f"\nWrote final mix to {_output_path}")
+
+
+###############################
+# 7c. Export Final Mix Back to Apple Music (opt-in via --export)
+###############################
+
+if _args.export:
+    _playlist_name = f"Mixer output {_timestamp}"
+    _ordered_track_ids = [mix_tracks_data[_idx]["track_id"]
+                          for _idx in global_overall_best_order]
+    print(f"\nExporting {len(_ordered_track_ids)} tracks to Apple Music "
+          f"playlist '{_playlist_name}'...", flush=True)
+    _ok, _err = add_tracks_to_playlist(_ordered_track_ids, _playlist_name)
+    if _err:
+        print(f"  Added {_ok} tracks, {_err} failed.")
+    else:
+        print(f"  Added {_ok} tracks — playlist '{_playlist_name}' created.")
 
 
 # ###############################

@@ -46,6 +46,7 @@ docs/karaoke-production/
 *.log
 
 # Mixer per-run outputs
+mixer/mixes/
 mixer/mix_*.txt
 
 # Temporary files
