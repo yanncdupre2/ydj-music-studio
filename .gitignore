@@ -27,6 +27,7 @@ YDJ Library.xml
 *.opus
 *.aac
 processed/
+docs/karaoke-production/
 
 # macOS
 .DS_Store
