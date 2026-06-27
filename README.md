@@ -116,6 +116,7 @@ Each subfolder contains its own `CLAUDE.md` for focused AI agent context and dom
 
 - **[PLANNING.md](PLANNING.md)** - Full project vision, strategy, and area breakdown
 - **[PROJECT-LOCAL-CONTEXT.md](PROJECT-LOCAL-CONTEXT.md)** - Current execution context, architecture, and next actions
+- **[TODO.md](TODO.md)** - Canonical tasks and current next actions
 - **Subfolder READMEs** - Domain-specific documentation for mixer, library-management, downloads
 
 ## Status by Area
