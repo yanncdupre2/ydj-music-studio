@@ -1,7 +1,7 @@
 schema_version = 1
 
 [portfolio]
-root = "../gtd-system/cutover/production-portfolio-batch1"
+root = "../gtd-system"
 
 [project]
 metadata_source = "PLANNING.md"
