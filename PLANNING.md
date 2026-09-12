@@ -4,7 +4,7 @@
 - [ ] Planning
 - [x] In Progress
 - [ ] On Hold
-- [ ] Completed
+- [ ] Retired
 - [ ] Cancelled
 
 ## Project Metadata
@@ -12,6 +12,7 @@
 - **Folder:** `ydj-music-studio`
 - **Created:** 2026-02-13
 - **Portfolio Area:** Creative & Media
+- **Kind:** program
 
 ## Objective
 
@@ -20,6 +21,13 @@ A comprehensive DJ music production and library management system encompassing t
 1. **Intelligent Playlist Optimization** - Harmonic mixing and BPM continuity using Camelot wheel system and simulated annealing
 2. **Automated Library Management** - Metadata tagging, cleanup, and LLM-powered genre categorization for Apple Music library
 3. **Efficient Media Processing** - YouTube download, conversion, karaoke video enhancement, and optimization for Apple ecosystem compatibility
+
+
+**Why this program has no terminal state.** Music keeps arriving. Every new
+track added to the library needs genre, year, BPM and key before it is
+mixer-eligible, and there is no state in which the last track has been
+acquired. The tools that do the work can be finished; the library they serve
+cannot.
 
 ## Scope
 
@@ -282,13 +290,32 @@ Shared Apple Music access (`common/`), the canonical genre taxonomy, the Python 
 - Spotify API (audio features, genres)
 - Last.fm API (genre tags, similar artists)
 
-## Success Criteria
+## Standing Conditions
 
 - **Mixer:** optimizes directly from an Apple Music playlist name (no hardcoding) and writes the result back as a new playlist; exact optimum for n ≤ 20.
 - **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy.
 - **Downloads:** files land in Apple-compatible formats with consistent `Artist - Title (type)` names.
 - **Karaoke:** overlays render predictably for FCP `screen`/`add` blending across the channels in use.
 - **Infra:** no data-loss incidents from library writes; backup/restore documented and tested.
+
+
+## Inflow
+
+- **Inflow event:** new music added to the Apple Music library that needs
+  categorization — genre, release year, BPM or Camelot key. Re-running the
+  tagger over already-categorized tracks is this program's own work and is
+  **not** inflow.
+- **Observed cadence:** not derivable from this repository. The library lives
+  in Apple Music, outside the repo, and no ingestion log survives — the only
+  local trace is a single tagging batch from 2026-02-13. The basis is therefore
+  the stated expectation of roughly quarterly arrival, not a measurement, and
+  this field should be replaced with real numbers once an ingestion log exists.
+- **Dormancy horizon:** 12 months — four times the stated quarterly
+  expectation, deliberately generous because there is no measured gap to
+  anchor it.
+- **Last inflow:** 2026-06-27 — last committed library and mix work. This is a
+  proxy for arrival rather than a record of it, which is itself the gap the
+  cadence field describes.
 
 ## Open Questions
 
