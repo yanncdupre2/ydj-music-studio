@@ -6,7 +6,7 @@ A comprehensive DJ music production and library management system for organizing
 
 YDJ Music Studio addresses four core workflows for DJs:
 
-1. **Playlist Optimization** — Harmonic mixing via Camelot wheel + BPM continuity. Rust engine combines simulated annealing (60x throughput vs. Python) with Held-Karp exact DP for n ≤ 20 (provably optimal in seconds).
+1. **Playlist Optimization** — Harmonic mixing via Camelot wheel + BPM continuity. Rust engine combines simulated annealing with Held-Karp exact DP for n ≤ 20 (provably optimal, seconds at that size).
 2. **Library Management** — Live AppleScript reads/writes, LLM-powered genre tagging from a canonical 31-genre taxonomy, interactive duplicate/inconsistency resolution.
 3. **YouTube Media Processing** — yt-dlp downloads → rename to `Artist - Title (Video/Karaoke/Lyrics Video)` format using a live Apple Music artist list, MKV→MP4 conversion, Opus→AAC.
 4. **Karaoke Video Prep** — Luminance-LUT pipeline turning a karaoke YouTube video into a black/white/sung-color overlay layer for Final Cut Pro `screen`/`add` blending. Optional `--no-lut` mode preserves multi-color text on a black background. Intro/outro preserve-or-blackout, zoom in/out, inverted-band polarity, outline halo, background darken, and a SwiftUI front-end.
@@ -16,8 +16,8 @@ YDJ Music Studio addresses four core workflows for DJs:
 ### Mixer (Playlist Optimization)
 - Harmonic mixing using Camelot wheel with ±1 semitone key shifting
 - BPM continuity optimization with configurable thresholds
-- Rust SA engine via PyO3 (60x throughput; ~3,500 attempts in 5 min)
-- Held-Karp exact DP optimizer for n ≤ 20 tracks (global optimum guaranteed, < 5s)
+- Rust SA engine via PyO3. One benchmark (2026-02-17, 17-track playlist) measured 0.2 → 12.0 attempts/s and ~3,500 attempts in 5 min; a single measurement, not a general guarantee
+- Held-Karp exact DP optimizer for n ≤ 20 tracks (global optimum guaranteed; measured 0.43s at n=17, 4.2s at n=20)
 - Reads "Mixer input" Apple Music playlist directly via AppleScript (no XML hardcoding)
 - Bridge key/BPM hints rendered as `>>` rows between tracks for high-cost transitions
 
