@@ -70,9 +70,9 @@ Edit global parameters at top of `mixer.py` (lines 18-42)
 ## Future Development
 
 **Phase 3 priorities:**
-1. Dynamic playlist management (not hardcoded arrays)
-2. Read Apple Music playlists by name
-3. Export optimized playlist back to Apple Music
+1. ~~Dynamic playlist management (not hardcoded arrays)~~ — shipped; tracks load live from Apple Music.
+2. Read Apple Music playlists by name — **still open**: `mixer.py:221` hardcodes `"Mixer input"`; there is no flag to pick another playlist.
+3. ~~Export optimized playlist back to Apple Music~~ — shipped 2026-06-27 as the opt-in `--export` flag (see `mixer/mixer.py`).
 4. Visual flow chart of transitions
 
 **Phase 5: Rust port**

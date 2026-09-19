@@ -6,84 +6,11 @@ Comprehensive DJ music production and library management system for YDJ, encompa
 **Karaoke video processing pipeline**: `karaoke-processing/karaoke-process` is the single canonical script (the v1 prototype was retired 2026-05-09 once the consolidated script reached feature parity). On top of the basic luminance-LUT pipeline it offers: independent intro/outro segments via `--intro-preserve N` / `--intro-blackout N` / `--outro-preserve N` / `--outro-blackout N` (each side can preserve the segment unaltered or replace it with a fully black frame; pairs mutually exclusive; intro+outro must sum < duration); `-z PERCENT` (uniform centered zoom; positive = scale up + center-crop, negative = scale down + center-pad with pure black, range -100…100); `--invert-bands` (swap mid/high LUT bands — rescues Party Tyme/APT-style channels); `--outline N` (high-contrast two-ring gray halo, default 2); `--no-lut` (skip the LUT entirely; preserve multi-color text on a black background — useful for Party Tyme duets where different singers use different font colors; uses `-lo` as a floor-to-black threshold instead of the LUT low band); `-o OUTPUT_DIR` (redirect outputs); `--sung-color HEX` (customizable sung-text color, default `00C800`); and `--bg-color HEX` + `--bg-strength` / `--bg-range` / `--bg-blend` (optional background darken for Karafun-style colored backgrounds; bg-darken's `lutyuv` step also pulls chroma toward neutral 128 so matched pixels actually go to true black even without the LUT). Pipeline insertion order in body: `mask → bg-darken → zoom → (LUT or floor-to-black) → outline`; intro/outro branches stay untouched. The filter chain is a 3-way concat `[intro][body][outro]` (or 2-way / no-concat depending on which sides are active). A SwiftUI macOS app `karaoke-processing/karaoke-process-gui/` wraps the script with live previews, persisted presets (including bg-darken and applyLut fields), white aspect-ratio borders on all image panels, and a foreground progress bar driven by parsing ffmpeg stderr. Quick Action Automator workflow at `karaoke-processing/Karaoke Process.workflow/` invokes the app via Finder right-click. End-to-end validated on ROSÉ & Bruno Mars - APT (LUT mode), Depeche Mode/Christophe/Frank Sinatra Karafun samples (LUT + bg-darken), and Britney Spears - Criminal (Party Tyme, --no-lut + bg-darken + outline + zoomout).
 
 ## Status by Area
-- **Mixer:** Rust SA + Held-Karp engine shipped (60x throughput; exact for n ≤ 20); live "Mixer input" reading + timestamped mix output. Open: export back to Apple Music.
+- **Mixer:** Rust SA + Held-Karp engine shipped (throughput measured 60x once, 2026-02-17, on a 17-track playlist (0.2 → 12.0 attempts/s) — a single benchmark, not a general guarantee; exact for n ≤ 20); live "Mixer input" reading, timestamped Markdown mix report, and opt-in `--export` write-back to a new Apple Music playlist (shipped 2026-06-27). **Open:** the input playlist name is still a string literal at `mixer/mixer.py:221` (`load_playlist_from_app("Mixer input")`) — track lists are no longer hardcoded, but the playlist name is.
 - **Library:** 4-source genre/year tagging, inconsistency resolver, and live AppleScript year+genre writes in production. Open: BPM/key audit + fill.
 - **Downloads:** complete — yt-dlp rename + MKV→MP4 / Opus→AAC conversion.
 - **Karaoke:** `karaoke-process` script + SwiftUI GUI mature and in use.
 - **Infra:** shared `common/` utils, genre taxonomy, venv + Rust build in place. Open: Apple Music backup/restore workflow.
-
-## Recent Sessions
-
-### 2026-05-18
-- ✅ **Doctrine conformance pass** via `/conform-project`:
-  - Flipped stub read order in `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` to the canonical sequence (GLOBAL-CONTEXT → PROJECT-LOCAL-CONTEXT → PLANNING).
-  - `PLANNING.md` Project Metadata block: removed the `**Status:** In Progress` line (deprecated 2026-05-18 — status lives only in the `## Status` checkboxes); unchecked the `Planning` checkbox so only `In Progress` is checked.
-  - `PLANNING.md` Out of Scope: removed stale item "Direct Apple Music library write operations (deferred to Phase 4 for safety)" — Phase 4 shipped year + genre writes and they're in production.
-  - PLC: added missing `## Current Priority / Next Actions` section, drafted from the open Phase 2/3 items in PLANNING (BPM/key audit, BPM tagging, mixer export-back, candidate-library re-enable).
-  - PLC: added Phase 5 (Rust engine) to the Completed Phases list.
-  - PLC: archived 7 older session entries (2026-02-14 through 2026-02-17 late-night) to new `docs/SESSION-LOG.md` per the 5-most-recent-OR-3-months retention rule. PLC keeps the 12 entries from 2026-02-18 onward (plus today).
-- 📌 **Deferred (Tier 3, manual)**: `PLANNING.md` Project Metadata is still missing `Last Renamed:` (project was renamed DJ Music Library Manager → YDJ Music Studio) and carries a non-canonical `**GitHub:**` field that doctrinally belongs in PLC's External References.
-- 📌 **Still drift-prone**: PLC's session log uses `## Recent Session (YYYY-MM-DD)` as separate top-level headings rather than the canonical single `## Recent Sessions` with `### YYYY-MM-DD` subentries. Left as-is for now — loose-match acceptable, restructuring would be churn.
-
-### 2026-05-23
-- ✅ **Doctrine conformance pass** via `/conform-project` (run 1 — created `conform-log.md`):
-  - PLC structure tree: corrected stale paths `common/metadata_utils.py` → `common/load_from_music_app.py`, `library-management/rename_files.py` → `rename_music_file.py`, and the snake_case naming example.
-  - PLC: corrected stale slash-command reference `/update-project-todos` → `/update-project-status`.
-  - `PLANNING.md`: collapsed 10 granular dated karaoke implementation paragraphs into 2 milestone bullets (dual-rolling-log anti-pattern; detail lives in this log).
-  - Archived the out-of-window `2026-02-18` session entry to `docs/SESSION-LOG.md` (retention rule).
-  - Removed the empty `data/` directory (only an empty gitignored `data/exports/`) to Trash; trimmed its references from the PLC and README structure trees.
-- ✅ **`PLANNING.md` Project Metadata**: set `Last Renamed: 2026-02-13`, and added `Todoist Project ID`/`Todoist Project Name` (see Todoist link below).
-- ✅ **Genre/year tagging** via `/fill-missing-genres-years`: filled 5 tracks (Etienne Daho 1998, Janie 2020, Zaoui 2023, Brigitte 2015 → French; Yazoo "Don't Go" 1982 → New-Wave/Synth-Pop). "Genre or Year Blank" playlist now empty.
-- ✅ **Todoist linked** via `/update-project-status`: created + linked a dedicated "YDJ Music Studio" Todoist project (ID `6ghVHmCJ3F5RJHhq`).
-- ✅ **Created `TODO.md`** (first backlog file) with five inline area tags (`[mixer]` `[library]` `[downloads]` `[karaoke]` `[infra]`), triaged interactively. `## Now` empty; Next = library audit + mixer export-back; Later = BPM + Camelot-key tagging.
-- ✅ **Dropped phase numbering** (design change): PLANNING `Strategy and Phases` → `Strategy and Breakdown` by the 5 areas; de-phased Success Criteria; stripped `(Phase C)`/`(Phase 5)` from decision headings; PLC `Completed Phases` → `Status by Area`; README `Development Status` → area bullets. Incidental phase mentions inside decision/risk bodies kept as historical record.
-- ✅ **Restructured this log** to canonical `## Recent Sessions` + `### YYYY-MM-DD` subentries (resolves the `/update-project-status` freshness-scan misfire).
-- No TODO.md `## Done` items to drain (TODO.md created empty this session).
-
-### 2026-06-14
-- ✅ **Doctrine conformance pass** via `/conform-project` (run 2) — 3 findings, all fixed:
-  - PLC §2.6 — collapsed the Current Priority empty-state to the canonical minimal form `*(none — mirrors TODO.md ## Now)*` (was verbose with area-tag legend + backlog-location hint; drift-prone per doctrine).
-  - PLC §2.9.5 — qualified `sources/musicbrainz.py` → `library-management/sources/musicbrainz.py` in External APIs (consistency with the Key Files entry).
-  - TODO.md line 12 — auto-fixed `non-ascii:em-dash` on the metadata-quality audit item: `—` → ` - `.
-- ✅ **Added Doctrine Compliance stamp** at EOF of PROJECT-LOCAL-CONTEXT.md (`v2.1`, `2026-06-14`) per DOCTRINE.md §8.1.
-- ✅ **conform-log.md** — appended run 2 entry; bumped frontmatter to `last_conformed: 2026-06-14`, `conform_runs: 2`.
-- 📌 **Improvements landed since run 1** (informational, not findings this pass): Project Metadata's `Last Renamed` populated, Todoist Project ID/Name present, and the Recent Sessions log already restructured to canonical `## Recent Sessions` + `### YYYY-MM-DD` (resolved a "still drift-prone" item from run 1).
-- No TODO.md `## Done` items to drain (no completions this session).
-
-### 2026-06-27 — Session close
-
-<!-- gtd-session: 238bfc81-c404-491a-bbd1-6f766ecc299e -->
-
-**Outcomes:**
-- Implemented mixer export-back to Apple Music (mixer/mixer.py --export); verified live end-to-end with order preserved.
-- Reworked the per-run mix report into Markdown (mixer/mixes/mix_*.md), persisting per-track key shifts and bridge/insertion recommendations.
-- Fixed literal backslash-u escape sequences in PROJECT-LOCAL-CONTEXT.md that blocked the gtd session-close transaction.
-
-**Decisions:**
-- Export is opt-in via --export, not automatic, to respect the project's safety-first stance on live-library mutation.
-- Exported playlists use a timestamped name to avoid duplicate-append and to match the mix-file scheme.
-- One always-written Markdown artifact per run (not a separate companion doc); the .txt report format is retired.
-- Generated mixes live in a dedicated gitignored mixer/mixes/ folder.
-
-**Completed tasks:**
-- [mixer] Export the optimized order back to Apple Music as a new playlist
-
-**Unresolved:**
-- Underlying gtd-system bug: session-close regex replacement chokes on literal backslash-u text in retained Recent Sessions entries; to be fixed in the gtd tool separately.
-- mixer/CLAUDE.md still lists export-back under Future Development - fold into next /rebaseline-project.
-- Cosmetic: Shift column renders +0 for unshifted tracks (consistent with console; leave or blank-out later).
-- Two test playlists remain in Apple Music for the user to delete at leisure.
-
-**Possible next-session objectives:**
-- [library] Audit metadata quality - surface tracks missing BPM or key data (recommended)
-- [infra] Apple Music backup/restore workflow before bulk library writes
-
-### 2026-07-18 — Session close
-
-<!-- gtd-session: f8ed7c0f-48a0-41eb-86ef-ca9ab2b6e0ff -->
-
-**Outcomes:**
-- Normalized Recent Sessions oldest-to-newest and archived entries beyond the configured retention limits.
 
 ## Constraints and Conventions
 
@@ -114,17 +41,20 @@ Comprehensive DJ music production and library management system for YDJ, encompa
 ### Project Structure
 ```
 ydj-music-studio/
-├── PLANNING.md                    # Vision, strategy, phases (why/what/when)
+├── PLANNING.md                    # Identity, objective, scope, durable decisions
+├── TODO.md                        # Canonical tasks (machine-maintained)
 ├── PROJECT-LOCAL-CONTEXT.md       # This file (how/where/with what)
-├── CLAUDE.md                      # Static stub → reads PLANNING + this + global
-├── AGENTS.md                      # Static stub (identical to CLAUDE.md)
-├── GEMINI.md                      # Static stub (identical to CLAUDE.md)
+├── SESSION-LOG.md                 # Session history (read via `gtd session context`)
+├── ARCHIVE/SESSION-LOG.md         # Older session entries, oldest first
+├── AGENTS.md                      # Agent entry point (read order)
+├── CLAUDE.md                      # Provider redirect → AGENTS.md
 ├── README.md                      # User-facing overview
 ├── requirements.txt               # Python dependencies
+├── .gtd/config.toml               # GTD project config (portfolio root, sources)
 ├── .gitignore                     # Exclude venv, data, media
 │
 ├── common/                        # Shared utilities across subprojects
-│   ├── apple_music.py             # XML reader (future: AppleScript integration)
+│   ├── apple_music.py             # XML reader + AppleScript playlist/metadata access
 │   ├── load_from_music_app.py     # Batched Apple Music playlist reader
 │   ├── genres.json                # Canonical 31-genre taxonomy
 │   └── README.md
@@ -133,14 +63,15 @@ ydj-music-studio/
 │   ├── CLAUDE.md                  # Mixer-specific AI context
 │   ├── mixer.py                   # Simulated annealing optimizer
 │   ├── camelot.py                 # Camelot wheel system
-│   ├── playlist_manager.py        # Dynamic playlist management (TBD)
+│   ├── create_key_playlists.py    # One-time Candidates-playlist setup utility
 │   └── README.md
 │
 ├── library-management/            # Tagging, cleanup, organization
 │   ├── CLAUDE.md                  # Library mgmt AI context
 │   ├── cleanup.py                 # Discrepancy finder and resolver
 │   ├── rename_music_file.py       # File renamer based on metadata
-│   ├── tag_updater.py             # Batch tag updates (TBD)
+│   ├── research_tracks.py         # 4-source metadata research
+│   ├── tag_tracks.py              # Interactive keypress tagger (live writes)
 │   └── README.md
 │
 ├── downloads/                     # YouTube download processing
@@ -156,9 +87,10 @@ ydj-music-studio/
 ├── venv/                          # Python virtual environment (gitignored)
 ├── karaoke-processing/            # Karaoke video processing batch tool
 │   ├── karaoke-process            # Bash + ffmpeg script (installed at ~/.local/bin/karaoke-process)
+│   ├── karaoke-process-gui/       # SwiftUI front-end (installed at /Applications/KaraokeProcessGUI.app)
 │   └── karaoke-process.md         # Authoritative reference: goal/rationale, usage, options, channel-specific starting points, tuning workflow
 └── src/
-    └── ydj_mixer_engine/          # Rust SA engine (Phase 5)
+    └── ydj_mixer_engine/          # Rust SA + Held-Karp engine
         ├── Cargo.toml             # pyo3 + rand deps
         ├── pyproject.toml         # maturin build config
         └── src/
@@ -257,12 +189,18 @@ karaoke-process "/path/to/video.mp4" -b 20% -l 20% --corners-only -f 20  # corne
 ```
 
 ### Mixer Usage (Current)
+`run-mixer.sh` is the supported entry point — it sources `~/.cargo/env` and the
+venv before running, so the Rust engine is importable.
 ```bash
 cd ~/Projects/ydj-music-studio
-source venv/bin/activate
-python3 mixer/mixer.py
-# Reads from "Mixer input" Apple Music playlist, optimizes for 5 minutes
-# Uses Rust engine (ydj_mixer_engine) if built; Python fallback otherwise
+./run-mixer.sh              # default 5-minute time budget
+./run-mixer.sh 2            # 2-minute budget (positional, float minutes)
+./run-mixer.sh 0.5 --export # quick run + write the order back to Apple Music
+# Reads from the "Mixer input" Apple Music playlist.
+# Uses Rust engine (ydj_mixer_engine) if built; Python fallback otherwise.
+# --export is opt-in. It creates a NEW playlist "Mixer output <timestamp>";
+# it never mutates the input playlist. On partial failure it reports the
+# added/failed counts and does not roll back the tracks already added.
 ```
 
 ### Rust Engine Build (required once after clone)
@@ -303,13 +241,25 @@ cd src/ydj_mixer_engine && maturin develop --release
 - Last.fm: Genre tags, similar artists (future)
 
 ## Slash Commands
+
+Project-local commands (defined in `.claude/commands/`):
 - `/fill-missing-genres-years` — End-to-end workflow: research → LLM/web fill → interactive tagging
-- `/resolve-inconsistencies` — Detect and resolve year/genre conflicts across track variants (229 groups)
-- `/rebaseline-project` — Update docs and commit to GitHub
-- `/update-project-status` — Session-start sync (Todoist reconcile, light freshness checks)
+- `/resolve-inconsistencies` — Detect and resolve year/genre conflicts across track variants (229 groups reported at first detection, 2026-02-14)
+
+Session lifecycle is owned by the installed GTD skills, not by this project:
+`gtd-start-session` to open, `gtd-finish-session` to close (it owns TODO
+regeneration, commit, push and session-log retention), `gtd-review-project`
+for a strategic review. The retired `/rebaseline-project` and
+`/update-project-status` commands no longer exist.
 
 ## Notes
 - Smart playlist "Genre or Year Blank" drives the missing-metadata tagging workflow
 - "Ignore year or genre inconsistencies" playlist filters out already-resolved groups
-- Interactive scripts (`tag_tracks.py`, `resolve_tagger.py`) require a real TTY — run via `run-tagger.sh` / `run-resolver.sh`
+- Interactive scripts (`tag_tracks.py`, `resolve_tagger.py`) put a single-keypress
+  prompt (`1` / `2` / `S`) in front of every live AppleScript write — verified in
+  `library-management/tag_tracks.py:151` immediately before the
+  `update_track_metadata()` call. `getch()` calls `tty.setraw()`, so they need a
+  real TTY: launch `run-tagger.sh` / `run-resolver.sh` in a **new Terminal
+  window** via `osascript`, never inline in an agent shell. The `osascript`
+  invocations live in the two `.claude/commands/` files.
 - XML export (`~/YDJ Library.xml`) used for bulk detection; AppleScript used for reads/writes

@@ -76,8 +76,8 @@ As an amateur DJ (YDJ), maintaining an organized music library and creating comp
 The project spans five areas with no fixed sequencing — each evolves independently.
 
 ### Mixer — playlist optimization
-Harmonic mixing (Camelot wheel + ±1 semitone shifts) and BPM continuity, solved as a track-ordering optimization. Rust engine via PyO3/maturin: simulated annealing for large sets, Held-Karp exact for n ≤ 20; Python fallback when the Rust module isn't built. Reads the "Mixer input" Apple Music playlist live; emits a timestamped mix with bridge key/BPM hints.
-**Open:** export the optimized order back to Apple Music as a new playlist.
+Harmonic mixing (Camelot wheel + ±1 semitone shifts) and BPM continuity, solved as a track-ordering optimization. Rust engine via PyO3/maturin: simulated annealing for large sets, Held-Karp exact for n ≤ 20; Python fallback when the Rust module isn't built. Reads the "Mixer input" Apple Music playlist live; emits a timestamped Markdown mix report with bridge key/BPM hints. Opt-in `--export` writes the optimized order back as a new timestamped Apple Music playlist (shipped 2026-06-27; the input playlist is never mutated).
+**Open:** the input playlist name is still hardcoded (`mixer/mixer.py:221`); selecting it per run is the remaining gap in the Standing Condition below. The candidate-library tempo-break insertion path in `mixer/mixer.py` remains commented out by design.
 
 ### Library — metadata management
 Consistent metadata across a ~10k-track Apple Music library: a canonical 31-genre compound taxonomy, 4-source consensus genre/year tagging (duplicates / LLM / web / MusicBrainz), and interactive inconsistency resolution. Live AppleScript reads/writes for year + genre, validated and in production use.
@@ -292,7 +292,7 @@ Shared Apple Music access (`common/`), the canonical genre taxonomy, the Python 
 
 ## Standing Conditions
 
-- **Mixer:** optimizes directly from an Apple Music playlist name (no hardcoding) and writes the result back as a new playlist; exact optimum for n ≤ 20.
+- **Mixer:** optimizes directly from an Apple Music playlist chosen per run (not a hardcoded name) and writes the result back as a new playlist; exact optimum for n ≤ 20. *Partially met as of 2026-09-18: write-back and exact n ≤ 20 ship; the input playlist name is still the literal "Mixer input".*
 - **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy.
 - **Downloads:** files land in Apple-compatible formats with consistent `Artist - Title (type)` names.
 - **Karaoke:** overlays render predictably for FCP `screen`/`add` blending across the channels in use.
@@ -335,9 +335,11 @@ Shared Apple Music access (`common/`), the canonical genre taxonomy, the Python 
    - Which API provides better metadata for DJ-oriented music (electronic, house, techno)?
    - How to handle API rate limits for large batch operations?
 
-5. **Performance Target**
-   - What's the acceptable optimization time for a 30-song playlist? (Current: ~30 min, Python optimized: ~10 min?, Rust: <3 min?)
-   - Is Rust port worth the effort if Python can achieve 10-minute runtime?
+5. **Performance Target** — *resolved 2026-02-17.* The Rust port shipped and was
+   worth it: a single 17-track benchmark measured 0.2 → 12.0 attempts/s, and
+   Held-Karp later made n ≤ 20 exact rather than approximate. The mixer now runs
+   to a user-chosen time budget (default 5 min) instead of a fixed attempt count,
+   so "acceptable optimization time" is a per-run input, not an open target.
 
 ## Resources & References
 
@@ -352,6 +354,6 @@ Shared Apple Music access (`common/`), the canonical genre taxonomy, the Python 
 ## Notes
 
 - **Genre Philosophy**: Compound genres solve the "is it House or Techno?" problem by allowing both
-- **Safety First**: Read-only XML approach until AppleScript is thoroughly tested
-- **Performance**: Python mixer works but is slow; Rust is future optimization, not immediate blocker
+- **Safety First**: superseded 2026-02-15 — AppleScript year/genre writes are in production, gated per track by the interactive tagger's keypress prompt. XML export is still used for bulk *reads*.
+- **Performance**: superseded 2026-02-17 — the Rust engine shipped and is the default path; the pure-Python optimizer now only runs as a fallback when `ydj_mixer_engine` is not built.
 - **Backup**: Always backup Apple Music library before any batch metadata operations

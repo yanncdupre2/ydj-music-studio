@@ -1,6 +1,14 @@
 # Session Log (Archive)
 
-Append-only archive of older dated entries from `PROJECT-LOCAL-CONTEXT.md`'s Recent Sessions log. PLC retains the 5 most recent OR everything from the last 3 months (whichever yields more); entries older than that floor are moved here.
+Append-only archive of older dated entries from `SESSION-LOG.md`. `gtd-finish-session`
+moves entries here once the live log passes its retention floor. This project sets no
+`[session_log]` table in `.gtd/config.toml`, so the gtd defaults apply (keep at least
+the 5 most recent, plus anything from the last 14 days).
+
+Entries before 2026-09-18 were written while the log lived in
+`PROJECT-LOCAL-CONTEXT.md`, and some of them point at a `docs/SESSION-LOG.md`
+that no longer exists. Those bodies are preserved verbatim as historical
+evidence — every archived entry now lives in this file.
 
 Oldest entries first.
 
@@ -189,3 +197,81 @@ _Earlier entries (2026-02-18 and before) archived to `docs/SESSION-LOG.md`._
 
 ### 2026-05-16
 - 📌 **Karaoke folder read access**: Added `Read(//Users/fydupre/Music/Karaoke/**)` to project `.claude/settings.local.json` so Claude can read karaoke source files from `~/Music/Karaoke/` without per-prompt approval. Folder stays at its native location (not moved under the project).
+
+
+### 2026-05-18
+- ✅ **Doctrine conformance pass** via `/conform-project`:
+  - Flipped stub read order in `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` to the canonical sequence (GLOBAL-CONTEXT → PROJECT-LOCAL-CONTEXT → PLANNING).
+  - `PLANNING.md` Project Metadata block: removed the `**Status:** In Progress` line (deprecated 2026-05-18 — status lives only in the `## Status` checkboxes); unchecked the `Planning` checkbox so only `In Progress` is checked.
+  - `PLANNING.md` Out of Scope: removed stale item "Direct Apple Music library write operations (deferred to Phase 4 for safety)" — Phase 4 shipped year + genre writes and they're in production.
+  - PLC: added missing `## Current Priority / Next Actions` section, drafted from the open Phase 2/3 items in PLANNING (BPM/key audit, BPM tagging, mixer export-back, candidate-library re-enable).
+  - PLC: added Phase 5 (Rust engine) to the Completed Phases list.
+  - PLC: archived 7 older session entries (2026-02-14 through 2026-02-17 late-night) to new `docs/SESSION-LOG.md` per the 5-most-recent-OR-3-months retention rule. PLC keeps the 12 entries from 2026-02-18 onward (plus today).
+- 📌 **Deferred (Tier 3, manual)**: `PLANNING.md` Project Metadata is still missing `Last Renamed:` (project was renamed DJ Music Library Manager → YDJ Music Studio) and carries a non-canonical `**GitHub:**` field that doctrinally belongs in PLC's External References.
+- 📌 **Still drift-prone**: PLC's session log uses `## Recent Session (YYYY-MM-DD)` as separate top-level headings rather than the canonical single `## Recent Sessions` with `### YYYY-MM-DD` subentries. Left as-is for now — loose-match acceptable, restructuring would be churn.
+
+
+
+### 2026-05-23
+- ✅ **Doctrine conformance pass** via `/conform-project` (run 1 — created `conform-log.md`):
+  - PLC structure tree: corrected stale paths `common/metadata_utils.py` → `common/load_from_music_app.py`, `library-management/rename_files.py` → `rename_music_file.py`, and the snake_case naming example.
+  - PLC: corrected stale slash-command reference `/update-project-todos` → `/update-project-status`.
+  - `PLANNING.md`: collapsed 10 granular dated karaoke implementation paragraphs into 2 milestone bullets (dual-rolling-log anti-pattern; detail lives in this log).
+  - Archived the out-of-window `2026-02-18` session entry to `docs/SESSION-LOG.md` (retention rule).
+  - Removed the empty `data/` directory (only an empty gitignored `data/exports/`) to Trash; trimmed its references from the PLC and README structure trees.
+- ✅ **`PLANNING.md` Project Metadata**: set `Last Renamed: 2026-02-13`, and added `Todoist Project ID`/`Todoist Project Name` (see Todoist link below).
+- ✅ **Genre/year tagging** via `/fill-missing-genres-years`: filled 5 tracks (Etienne Daho 1998, Janie 2020, Zaoui 2023, Brigitte 2015 → French; Yazoo "Don't Go" 1982 → New-Wave/Synth-Pop). "Genre or Year Blank" playlist now empty.
+- ✅ **Todoist linked** via `/update-project-status`: created + linked a dedicated "YDJ Music Studio" Todoist project (ID `6ghVHmCJ3F5RJHhq`).
+- ✅ **Created `TODO.md`** (first backlog file) with five inline area tags (`[mixer]` `[library]` `[downloads]` `[karaoke]` `[infra]`), triaged interactively. `## Now` empty; Next = library audit + mixer export-back; Later = BPM + Camelot-key tagging.
+- ✅ **Dropped phase numbering** (design change): PLANNING `Strategy and Phases` → `Strategy and Breakdown` by the 5 areas; de-phased Success Criteria; stripped `(Phase C)`/`(Phase 5)` from decision headings; PLC `Completed Phases` → `Status by Area`; README `Development Status` → area bullets. Incidental phase mentions inside decision/risk bodies kept as historical record.
+- ✅ **Restructured this log** to canonical `## Recent Sessions` + `### YYYY-MM-DD` subentries (resolves the `/update-project-status` freshness-scan misfire).
+- No TODO.md `## Done` items to drain (TODO.md created empty this session).
+
+
+
+### 2026-06-14
+- ✅ **Doctrine conformance pass** via `/conform-project` (run 2) — 3 findings, all fixed:
+  - PLC §2.6 — collapsed the Current Priority empty-state to the canonical minimal form `*(none — mirrors TODO.md ## Now)*` (was verbose with area-tag legend + backlog-location hint; drift-prone per doctrine).
+  - PLC §2.9.5 — qualified `sources/musicbrainz.py` → `library-management/sources/musicbrainz.py` in External APIs (consistency with the Key Files entry).
+  - TODO.md line 12 — auto-fixed `non-ascii:em-dash` on the metadata-quality audit item: `—` → ` - `.
+- ✅ **Added Doctrine Compliance stamp** at EOF of PROJECT-LOCAL-CONTEXT.md (`v2.1`, `2026-06-14`) per DOCTRINE.md §8.1.
+- ✅ **conform-log.md** — appended run 2 entry; bumped frontmatter to `last_conformed: 2026-06-14`, `conform_runs: 2`.
+- 📌 **Improvements landed since run 1** (informational, not findings this pass): Project Metadata's `Last Renamed` populated, Todoist Project ID/Name present, and the Recent Sessions log already restructured to canonical `## Recent Sessions` + `### YYYY-MM-DD` (resolved a "still drift-prone" item from run 1).
+- No TODO.md `## Done` items to drain (no completions this session).
+
+
+
+### 2026-06-27 — Session close
+
+<!-- gtd-session: 238bfc81-c404-491a-bbd1-6f766ecc299e -->
+
+**Outcomes:**
+- Implemented mixer export-back to Apple Music (mixer/mixer.py --export); verified live end-to-end with order preserved.
+- Reworked the per-run mix report into Markdown (mixer/mixes/mix_*.md), persisting per-track key shifts and bridge/insertion recommendations.
+- Fixed literal backslash-u escape sequences in PROJECT-LOCAL-CONTEXT.md that blocked the gtd session-close transaction.
+
+**Decisions:**
+- Export is opt-in via --export, not automatic, to respect the project's safety-first stance on live-library mutation.
+- Exported playlists use a timestamped name to avoid duplicate-append and to match the mix-file scheme.
+- One always-written Markdown artifact per run (not a separate companion doc); the .txt report format is retired.
+- Generated mixes live in a dedicated gitignored mixer/mixes/ folder.
+
+**Completed tasks:**
+- [mixer] Export the optimized order back to Apple Music as a new playlist
+
+**Unresolved:**
+- Underlying gtd-system bug: session-close regex replacement chokes on literal backslash-u text in retained Recent Sessions entries; to be fixed in the gtd tool separately.
+- mixer/CLAUDE.md still lists export-back under Future Development - fold into next /rebaseline-project.
+- Cosmetic: Shift column renders +0 for unshifted tracks (consistent with console; leave or blank-out later).
+- Two test playlists remain in Apple Music for the user to delete at leisure.
+
+**Possible next-session objectives:**
+- [library] Audit metadata quality - surface tracks missing BPM or key data (recommended)
+- [infra] Apple Music backup/restore workflow before bulk library writes
+
+### 2026-07-18 — Session close
+
+<!-- gtd-session: f8ed7c0f-48a0-41eb-86ef-ca9ab2b6e0ff -->
+
+**Outcomes:**
+- Normalized Recent Sessions oldest-to-newest and archived entries beyond the configured retention limits.

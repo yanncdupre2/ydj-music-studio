@@ -115,13 +115,14 @@ Each subfolder contains its own `CLAUDE.md` for focused AI agent context and dom
 ## Documentation
 
 - **[PLANNING.md](PLANNING.md)** - Full project vision, strategy, and area breakdown
-- **[PROJECT-LOCAL-CONTEXT.md](PROJECT-LOCAL-CONTEXT.md)** - Current execution context, architecture, and next actions
+- **[PROJECT-LOCAL-CONTEXT.md](PROJECT-LOCAL-CONTEXT.md)** - Current operating knowledge: constraints, commands, paths, integrations
+- **[SESSION-LOG.md](SESSION-LOG.md)** - Session history (older entries in [ARCHIVE/SESSION-LOG.md](ARCHIVE/SESSION-LOG.md))
 - **[TODO.md](TODO.md)** - Canonical tasks and current next actions
 - **Subfolder READMEs** - Domain-specific documentation for mixer, library-management, downloads
 
 ## Status by Area
 
-- **Mixer** — Rust SA + Held-Karp engine (60x throughput; exact for n ≤ 20), live "Mixer input" playlist read, timestamped mix output with bridge hints. Open: export the optimized order back to Apple Music.
+- **Mixer** — Rust SA + Held-Karp engine (exact for n ≤ 20), live "Mixer input" playlist read, timestamped Markdown mix report with bridge hints, and opt-in `--export` write-back to a new Apple Music playlist. Open: choose the input playlist per run instead of the hardcoded name.
 - **Library** — 4-source genre/year tagging, inconsistency resolver, live AppleScript year+genre writes (in production). Open: audit + fill missing BPM/key.
 - **Downloads** — complete: yt-dlp rename to `Artist - Title (type)` + MKV→MP4 / Opus→AAC conversion.
 - **Karaoke** — `karaoke-process` script (`~/.local/bin/karaoke-process`) + SwiftUI GUI (`/Applications/KaraokeProcessGUI.app`), mature and in use.
