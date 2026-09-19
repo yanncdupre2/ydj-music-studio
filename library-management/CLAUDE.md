@@ -29,7 +29,9 @@ This subfolder focuses on **metadata tagging, cleanup, and organization** for Ap
 - **31 canonical compound genres** stored in `../common/genres.json`
 - Examples: "EDM, House, Techno", "New-Wave, Techno-Pop, Electro-Pop, Synth-Pop"
 - **Philosophy:** Compound genres solve "is it House or Techno?" ambiguity
-- Tracks with <20 songs in a genre will be reclassified using this taxonomy
+- Only tracks whose genre is outside this list need reclassifying. A canonical
+  genre may legitimately be small in the DJ subset (`Classical, Lyrical`: 5 DJ
+  tracks, 1,459 library-wide)
 
 ### Metadata Fields
 **Priority fields:**

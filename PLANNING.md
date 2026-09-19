@@ -217,7 +217,7 @@ and keeps agent context scoped to the area being worked on.
 ## Standing Conditions
 
 - **Mixer:** optimizes directly from an Apple Music playlist chosen per run (not a hardcoded name) and writes the result back as a new playlist; exact optimum for n ≤ 20. *Partially met: write-back and exact n ≤ 20 ship; the input playlist name is still the literal "Mixer input" at `mixer/mixer.py:221`. Carried by a [mixer] task.*
-- **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy. ***Met as of 2026-09-19***, first measurement: across the 8,612 DJ tracks read, **0 missing year, 0 missing genre (0.00%)**. BPM is absent on 15 tracks (0.17%) and a Camelot key is absent from Comments on 17 (0.20%, detected by a `\d{1,2}[AB]` pattern, so approximate). Taxonomy consistency is the remaining soft spot: 7 genre strings covering 44 tracks sit under the 20-song threshold, 3 of them off-taxonomy (`Special`, `K-Pop`, `Alternative`).*
+- **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy. ***Met as of 2026-09-19***, first measurement: across the 8,612 DJ tracks read, **0 missing year, 0 missing genre (0.00%)**. BPM is absent on 15 tracks (0.17%) and a Camelot key is absent from Comments on 17 (0.20%, detected by a `\d{1,2}[AB]` pattern, so approximate). Taxonomy: 29 genre strings in use, 2 of them off-taxonomy — `Special` (2 tracks, deliberately retained) and `Alternative` (1 track, blocked; see Open Questions).*
 - **Downloads:** files land in Apple-compatible formats with consistent `Artist - Title (type)` names. *Satisfied and stable since 2026-04-28. Qualitative, with no automated check.*
 - **Karaoke:** overlays render predictably for FCP `screen`/`add` blending across the channels in use. *Satisfied and stable since 2026-05-09. Qualitative, validated by eye per channel.*
 - **Infra:** no data-loss incidents from library writes; backup/restore documented and tested; **no script, command or skill in this program deletes a library track**. *No incidents to date, and the no-deletion property holds as of 2026-09-19. Backup/restore is unmet and carried by an [infra] task; it gates further bulk writes. The no-deletion condition is what makes `--dry-run` sufficient in place of an isolated test library — if it is ever broken, that decision must be revisited.*
@@ -267,14 +267,26 @@ and keeps agent context scoped to the area being worked on.
 
 ## Open Questions
 
-1. **Sub-threshold genres.** The 31-genre taxonomy covers genres with 20+ songs.
-   `PROJECT-LOCAL-CONTEXT.md`, `common/README.md` and
-   `library-management/CLAUDE.md` all state that smaller genres "will be
-   reclassified later." No task or Standing Condition carries this. As measured
-   2026-09-19 it is a 44-track cleanup across 7 genre strings — `Reggae,
-   Caribbean` (17), `Comedy` (9), `World` (8), `Classical, Lyrical` (5), and the
-   three off-taxonomy strings `Special` (2), `K-Pop` (2), `Alternative` (1).
-   Decide whether to schedule, redefine, or retire the commitment.
+1. **One track cannot be retagged by any supported path.** `61063` Indochine &
+   Christine and the Queens - "3SEX" should be `New-Wave, Techno-Pop,
+   Electro-Pop, Synth-Pop`, but it is an Apple Music **subscription** track
+   (`cloudStatus = subscription`, `.m4p`) and is not reachable through
+   `library playlist 1` — neither by database ID nor by artist + name, the two
+   lookups every writer uses. It is addressable only via the playlist that
+   contains it. Fixing it means editing by hand in Music.app, and the edit may
+   not survive a library re-sync. Decide whether subscription tracks are in
+   scope for tagging at all; if they are, the write path needs a
+   playlist-scoped lookup, which no current code has.
+
+   *Resolved 2026-09-19 — the "smaller genres will be reclassified later"
+   commitment that used to sit here. Measurement showed it was not a 44-track
+   job: 4 of the 7 sub-threshold strings (`Reggae, Caribbean`, `Comedy`,
+   `World`, `Classical, Lyrical`) are canonical master-list genres that are
+   simply small inside the DJ subset — `Classical, Lyrical` has 1,459 tracks
+   library-wide. Only 5 tracks were off-taxonomy. `K-Pop` (2) was retagged to
+   `Pop`, `Special` (2) was deliberately retained as a party-utility category
+   with no master-list equivalent, and `Alternative` (1) is the blocked track
+   above.*
 
 2. **Taxonomy evolution.** How should new music styles not covered by the 31
    canonical genres be handled — periodic review and expansion, or strict

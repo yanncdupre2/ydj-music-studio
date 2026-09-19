@@ -49,7 +49,9 @@ Canonical list of 31 compound genres used for consistent tagging across library.
 **Selection Criteria:**
 - Genres with 20+ songs in library
 - Covers ~95% of library tracks
-- Smaller genres (<20 songs) will be reclassified using this taxonomy
+- A canonical genre can still be small within a given playlist subset; small is
+  not the same as off-taxonomy. Only genre strings outside this list need
+  reclassifying (measured 2026-09-19: 2 such strings across the DJ library)
 
 **Usage:**
 ```python

@@ -9,7 +9,7 @@ paths, and integrations.
 
 ## Status by Area
 - **Mixer:** Rust SA + Held-Karp engine shipped (throughput measured 60x once, 2026-02-17, on a 17-track playlist (0.2 → 12.0 attempts/s) — a single benchmark, not a general guarantee; exact for n ≤ 20); live "Mixer input" reading, timestamped Markdown mix report, and opt-in `--export` write-back to a new Apple Music playlist (shipped 2026-06-27). **Open:** the input playlist name is still a string literal at `mixer/mixer.py:221` (`load_playlist_from_app("Mixer input")`) — track lists are no longer hardcoded, but the playlist name is.
-- **Library:** 4-source genre/year tagging, inconsistency resolver, and live AppleScript year+genre writes in production. Measured 2026-09-19: 0 DJ tracks missing year or genre; 15 lack BPM, 17 lack a Camelot key.
+- **Library:** 4-source genre/year tagging, inconsistency resolver, and live AppleScript year+genre writes in production. Measured 2026-09-19: 0 DJ tracks missing year or genre; 15 lack BPM, 17 lack a Camelot key; 29 genre strings in use, 2 off-taxonomy.
 - **Downloads:** complete — yt-dlp rename + MKV→MP4 / Opus→AAC conversion.
 - **Karaoke:** `karaoke-process` script + SwiftUI GUI mature and in use.
 - **Infra:** shared `common/` utils, genre taxonomy, venv + Rust build in place. Open: Apple Music backup/restore workflow.
@@ -23,8 +23,13 @@ paths, and integrations.
 
 ### Genre Taxonomy Rules
 - Use compound genres exactly as they appear in library (e.g., "EDM, House, Techno")
-- 31 canonical genres cover tracks with 20+ songs
-- Smaller genres (<20 songs) will be reclassified later
+- 31 canonical genres; the list was derived from genres having 20+ songs
+- A canonical genre may still be small inside the DJ subset (e.g. `Classical,
+  Lyrical` has 5 DJ tracks but 1,459 library-wide). Small is not the same as
+  off-taxonomy — only off-taxonomy strings need reclassifying
+- As of 2026-09-19 the DJ subset uses 29 genre strings, 2 off-taxonomy:
+  `Special` (2, deliberately retained) and `Alternative` (1, on a subscription
+  track that no supported write path can reach)
 - Compound genres solve "is it House or Techno?" ambiguity problem
 
 ### Code Conventions
@@ -149,6 +154,17 @@ pip install -r requirements.txt
 - mutagen (audio file metadata)
 - fuzzywuzzy (fuzzy string matching)
 - python-Levenshtein (fuzzywuzzy speedup)
+
+### Subscription (Apple Music) tracks are not writable
+A track with `cloud status = subscription` (a `.m4p` from an Apple Music
+subscription) is **not reachable through `library playlist 1`** — neither
+`whose database ID is ...` nor `whose artist is ... and name is ...` finds it.
+Both are the lookups every writer in this repo uses, so no supported path can
+retag one; it is addressable only through a playlist that contains it. Edit
+those by hand in Music.app (Get Info → Genre), and expect the edit may not
+survive a library re-sync. `verify_track()` returns `NOT_FOUND` for these, so
+the taggers skip rather than mis-write — that is the guard working, not a bug.
+Known instance: database ID `61063`, Indochine & Christine and the Queens "3SEX".
 
 ### Reading the Library (performance)
 `common/load_from_music_app.py` reads one property across **every** track in a
