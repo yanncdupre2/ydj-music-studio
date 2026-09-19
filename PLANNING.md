@@ -16,8 +16,15 @@
 
 ## Objective
 
-Keep a ~10k-track Apple Music DJ library continuously enriched and usable for
-harmonic mixing, and build the tools that make that work fast enough to sustain.
+Keep the DJ music library continuously enriched and usable for harmonic mixing,
+and build the tools that make that work fast enough to sustain.
+
+The Apple Music library holds 19,061 tracks, but the DJ library proper is the
+8,613 unique tracks in `MASTER LIST DJ AUDIO` (6,252) and `MASTER LIST DJ VIDEO`
+(2,361) — the two playlists used to run a dance party, with no overlap between
+them. That subset is where enrichment effort goes and what the Standing
+Conditions below are measured against; the rest of the library is not in scope
+for tagging. (Counts measured 2026-09-19.)
 
 Library management and enrichment is the ongoing work. Every other area exists
 to serve it:
@@ -78,8 +85,10 @@ lives in each area's reference, linked in the Objective table above.
 A canonical 31-genre compound taxonomy, 4-source consensus genre/year tagging,
 and interactive inconsistency resolution. Live AppleScript reads and writes for
 year and genre, in production use.
-**Open:** audit and fill missing BPM and Camelot key; both are blocked on a
-write path that does not yet exist (see Open Questions).
+**Open:** 15 DJ tracks lack BPM and 17 lack a Camelot key (measured 2026-09-19).
+At that size this is a hand-correction in Music.app, not a tooling problem — the
+missing AppleScript BPM/Comments write path only matters if the fill is
+automated. See Open Questions.
 
 ### Mixer — playlist optimization
 Harmonic mixing and BPM continuity solved as a track-ordering optimization over
@@ -129,13 +138,24 @@ last manual-export dependency.
 ### The interactive taggers gate every write per track
 `tag_tracks.py` and `resolve_tagger.py` are the supported tagging path, and both
 put a blocking single-keypress prompt (`1` / `2` / `S`) in front of every live
-write and honor `--dry-run`. In `tag_tracks.py` the keypress loop at `:151` and
-the `--dry-run` check both precede the write at `:176` within the same loop
-iteration; there is no path to the write that bypasses them. `getch()` calls
+write and honor `--dry-run`. In `tag_tracks.py` the keypress loop at `:153`, the
+identity check at `:178` and the `--dry-run` check at `:188` all precede the
+write at `:192` within the same loop iteration; there is no path to the write
+that bypasses them. `getch()` calls
 `tty.setraw()`, so these scripts require a real TTY — see
 `PROJECT-LOCAL-CONTEXT.md` for how to launch them.
 
-This guarantee covers the interactive taggers, not every writer in the tree.
+**No workflow in this program deletes a library track.** The entire Apple Music
+write surface is additive or corrective: `add_tracks_to_playlist()` creates a
+new playlist and never mutates an existing one, and the metadata path sets year
+and genre. There is no AppleScript `delete` statement anywhere in the tree, and
+no command or helper script removes a track. Because the worst outcome is a
+mislabeled track rather than a lost one, `--dry-run` plus the per-track keypress
+is accepted as sufficient preview and consent, and a separate test library is
+not required. This reasoning depends on the no-deletion property, which is
+carried as a Standing Condition rather than left as a one-time observation.
+
+The per-track guarantee covers the interactive taggers, not every writer in the tree.
 Four other scripts in `library-management/` write to the live library
 (`batch_update_no_copyright.py`, `update_year.py`, and two `test_update_hymn*`
 scripts), each gated by a single run-level `input()` confirmation rather than
@@ -145,13 +165,22 @@ outstanding backup/restore condition exists to cover. A fifth,
 `interactive_tagger.py`, is dead code and is carried by an [infra] task.
 
 ### Track identification: artist + name, with database ID as fallback
-Database IDs go stale between XML exports; searching by artist + name does not.
-`update_track_metadata()` takes optional `artist` and `name` and prefers them,
-falling back to database ID when they are absent or the search fails.
+Database IDs are captured at research time and can go stale before the write —
+the `/fill-missing-genres-years` workflow can leave hours between the two, and
+its `/tmp/recommendations.json` can be resumed a day later. Artist + name
+survives that gap; a database ID may not.
 
-This is only half-applied in practice. `resolve_tagger.py` both verifies track
-identity before writing and passes artist and name; `tag_tracks.py` does
-neither. See Open Questions.
+Both taggers therefore apply the same two protections. `update_track_metadata()`
+takes optional `artist` and `name` and prefers them, falling back to database ID
+only when they are absent or the search fails. And before any write, both call
+`verify_track()` to confirm the database ID still resolves to the artist and
+name the user was shown, skipping loudly on mismatch rather than writing to
+whatever the ID now points at. The guard runs in `--dry-run` too, so a preview
+surfaces stale IDs before a real run does.
+
+This matters because the keypress prompt identifies a track by artist and name
+while the write resolves it by ID. Without the check, approving one track could
+write to another.
 
 ### Mixer: Rust engine primary, Python fallback
 The optimizer's inner loop is Rust via PyO3/maturin; Python owns all I/O and
@@ -188,10 +217,10 @@ and keeps agent context scoped to the area being worked on.
 ## Standing Conditions
 
 - **Mixer:** optimizes directly from an Apple Music playlist chosen per run (not a hardcoded name) and writes the result back as a new playlist; exact optimum for n ≤ 20. *Partially met: write-back and exact n ≤ 20 ship; the input playlist name is still the literal "Mixer input" at `mixer/mixer.py:221`. Carried by a [mixer] task.*
-- **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy. *Unmeasured as of 2026-09-19 — no audit has ever produced the percentage, so this condition cannot currently be evaluated either way. Carried by a [library] task.*
+- **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy. ***Met as of 2026-09-19***, first measurement: across the 8,612 DJ tracks read, **0 missing year, 0 missing genre (0.00%)**. BPM is absent on 15 tracks (0.17%) and a Camelot key is absent from Comments on 17 (0.20%, detected by a `\d{1,2}[AB]` pattern, so approximate). Taxonomy consistency is the remaining soft spot: 7 genre strings covering 44 tracks sit under the 20-song threshold, 3 of them off-taxonomy (`Special`, `K-Pop`, `Alternative`).*
 - **Downloads:** files land in Apple-compatible formats with consistent `Artist - Title (type)` names. *Satisfied and stable since 2026-04-28. Qualitative, with no automated check.*
 - **Karaoke:** overlays render predictably for FCP `screen`/`add` blending across the channels in use. *Satisfied and stable since 2026-05-09. Qualitative, validated by eye per channel.*
-- **Infra:** no data-loss incidents from library writes; backup/restore documented and tested. *No incidents to date. Backup/restore is unmet and carried by an [infra] task; it gates further bulk writes.*
+- **Infra:** no data-loss incidents from library writes; backup/restore documented and tested; **no script, command or skill in this program deletes a library track**. *No incidents to date, and the no-deletion property holds as of 2026-09-19. Backup/restore is unmet and carried by an [infra] task; it gates further bulk writes. The no-deletion condition is what makes `--dry-run` sufficient in place of an isolated test library — if it is ever broken, that decision must be revisited.*
 
 ## Inflow
 
@@ -214,8 +243,8 @@ and keeps agent context scoped to the area being worked on.
 ## Risks and Dependencies
 
 ### Risks
-1. **Apple Music library corruption** — Impact: high; the library holds ~10,000
-   tracks. Bulk reads stay read-only and every live write is gated per track.
+1. **Apple Music library corruption** — Impact: high; the library holds 19,061
+   tracks, 8,613 of them in the DJ playlists. Bulk reads stay read-only and every live write is gated per track.
    A documented, tested backup/restore workflow is still outstanding and gates
    further bulk writes.
 2. **Genre taxonomy drift** — New genres accumulate inconsistently over time.
@@ -241,37 +270,25 @@ and keeps agent context scoped to the area being worked on.
 1. **Sub-threshold genres.** The 31-genre taxonomy covers genres with 20+ songs.
    `PROJECT-LOCAL-CONTEXT.md`, `common/README.md` and
    `library-management/CLAUDE.md` all state that smaller genres "will be
-   reclassified later." No task or Standing Condition carries this. Decide
-   whether to schedule, redefine, or retire the commitment.
+   reclassified later." No task or Standing Condition carries this. As measured
+   2026-09-19 it is a 44-track cleanup across 7 genre strings — `Reggae,
+   Caribbean` (17), `Comedy` (9), `World` (8), `Classical, Lyrical` (5), and the
+   three off-taxonomy strings `Special` (2), `K-Pop` (2), `Alternative` (1).
+   Decide whether to schedule, redefine, or retire the commitment.
 
 2. **Taxonomy evolution.** How should new music styles not covered by the 31
    canonical genres be handled — periodic review and expansion, or strict
    enforcement of the existing list?
 
 3. **BPM and Comments writes.** Whether AppleScript can write these reliably is
-   unproven, and it blocks both the BPM and the Camelot-key tagging tasks.
-   Carried by a [library] spike task.
+   unproven. It blocks *automated* BPM and Camelot-key filling — but the measured
+   backlog is 15 and 17 tracks, so hand-correcting them in Music.app may retire
+   the need entirely. Decide whether the spike is still worth doing.
 
-4. **Track-identity protection is applied unevenly.** `resolve_tagger.py` has
-   two guards: it calls `verify_track()` to confirm the database ID still
-   resolves to the expected artist + name and skips on mismatch (`:93-99`), and
-   it passes `artist` and `name` into `update_track_metadata()` (`:108`).
-   `tag_tracks.py` has neither — it does not import `verify_track`, and its call
-   at `:176` omits `artist` and `name`, so the main tagging workflow writes by
-   database ID alone with no identity check. Both values are in scope at that
-   call site (`:137`). Decide whether to bring the tagger up to the resolver's
-   protections or to narrow the decision to the resolver.
-
-5. **No isolated test library.** Live writes were adopted on the understanding
-   that AppleScript work could be tested against a separate test library. That
-   was never built; what stands in for it is the per-track keypress gate and
-   `--dry-run`. Those are preview and consent, not isolation. Decide whether an
-   isolated test library is still required before further write-path work.
-
-6. **Batch update concurrency.** What is the safe model for batch updates —
+4. **Batch update concurrency.** What is the safe model for batch updates —
    one-at-a-time, batched, or transactional?
 
-7. **Metadata source comparison.** Which external API serves DJ-oriented music
+5. **Metadata source comparison.** Which external API serves DJ-oriented music
    best, and how should rate limits be handled for large batches?
 
 ## Resources & References

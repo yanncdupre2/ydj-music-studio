@@ -15,6 +15,126 @@ import subprocess
 import pandas as pd
 from datetime import datetime
 
+#: Record separator used to join AppleScript lists. ASCII 0x1F (unit separator)
+#: is used rather than a printable character because track names, albums and
+#: comments routinely contain "|", ",", and tabs.
+SEP = "\x1f"
+
+
+#: AppleScript renders an absent property as this literal when coerced to text.
+MISSING = "missing value"
+
+
+def _to_text(value):
+    """Normalize an AppleScript text value, mapping an absent property to ""."""
+    return "" if value == MISSING else value
+
+
+def _to_int(value, zero_as_none=False):
+    """Parse an AppleScript numeric string, tolerating "", "missing value" and floats."""
+    text = (value or "").strip()
+    if not text or text == MISSING:
+        return None if zero_as_none else 0
+    try:
+        number = int(float(text))
+    except ValueError:
+        return None if zero_as_none else 0
+    if number == 0 and zero_as_none:
+        return None
+    return number
+
+
+def _to_duration_ms(value):
+    """Convert an AppleScript duration in seconds to integer milliseconds."""
+    text = (value or "").strip()
+    if not text or text == MISSING:
+        return 0
+    try:
+        return int(float(text) * 1000)
+    except ValueError:
+        return 0
+
+
+#: (DataFrame column, AppleScript property, parser). One bulk AppleScript call
+#: is made per entry, so cost scales with the number of FIELDS, not tracks.
+TRACK_FIELDS = (
+    ("Track ID", "database ID", lambda v: v.strip()),
+    ("Name", "name", _to_text),
+    ("Artist", "artist", _to_text),
+    ("Album", "album", _to_text),
+    ("Album Artist", "album artist", _to_text),
+    ("Genre", "genre", _to_text),
+    ("Year", "year", lambda v: _to_int(v, zero_as_none=True)),
+    ("BPM", "bpm", _to_int),
+    ("Rating", "rating", _to_int),
+    ("Comments", "comment", _to_text),
+    ("Grouping", "grouping", _to_text),
+    ("Kind", "kind", _to_text),
+    ("Play Count", "played count", _to_int),
+    ("Duration (ms)", "duration", _to_duration_ms),
+)
+
+
+def _bulk_property(container_clause, prop):
+    """Read one property across every track of a container in a single Apple Event.
+
+    Asking for `<prop> of every track` returns the whole column in one event.
+    Reading track-by-track costs one Apple Event *per property per track*, which
+    is ~267,000 events for a 19k-track library and takes tens of minutes.
+    """
+    script = f'''
+    tell application "Music"
+        set oldD to AppleScript's text item delimiters
+        set AppleScript's text item delimiters to (character id 31)
+        set r to ({prop} of every track of {container_clause}) as text
+        set AppleScript's text item delimiters to oldD
+        return r
+    end tell
+    '''
+    # Deliberately not run_applescript(): it calls .strip(), and Python counts
+    # \x1c-\x1f as whitespace, so a trailing run of separators (every track
+    # whose value is empty, e.g. 2,252 of 2,361 tracks with no album) would be
+    # stripped and silently shorten this column. Strip only the newline.
+    try:
+        result = subprocess.run(
+            ['osascript', '-e', script],
+            capture_output=True, text=True, check=True
+        )
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"AppleScript error reading {prop}: {e.stderr}")
+    raw = result.stdout.rstrip("\n")
+    return raw.split(SEP) if raw else []
+
+
+def _fetch_tracks_bulk(container_clause, expected_count=None, progress=True):
+    """Fetch all tracks of a container as dicts, one bulk call per field."""
+    columns = {}
+    for index, (column, prop, _) in enumerate(TRACK_FIELDS, 1):
+        if progress:
+            print(f"  [{index}/{len(TRACK_FIELDS)}] reading {prop}...", flush=True)
+        columns[column] = _bulk_property(container_clause, prop)
+
+    lengths = {col: len(vals) for col, vals in columns.items()}
+    count = max(lengths.values()) if lengths else 0
+    # Every column must have one entry per track. A short column means a value
+    # contained the separator and desynced that field, which would silently
+    # attach one track's metadata to another. Refuse rather than return skew.
+    mismatched = {col: n for col, n in lengths.items() if n != count}
+    if mismatched:
+        raise RuntimeError(
+            f"Bulk read desynced: expected {count} values per field, got {mismatched}"
+        )
+    if expected_count is not None and count != expected_count:
+        raise RuntimeError(
+            f"Bulk read returned {count} tracks, but the container reports {expected_count}"
+        )
+
+    parsers = {column: parser for column, _, parser in TRACK_FIELDS}
+    return [
+        {column: parsers[column](columns[column][i]) for column in columns}
+        for i in range(count)
+    ]
+
 
 def run_applescript(script):
     """
@@ -59,6 +179,10 @@ def get_track_count():
 
 def get_tracks_batch(start_index, batch_size=100):
     """
+    LEGACY per-track reader. Retained for compatibility; not used by
+    load_library_from_music_app(), which now uses the bulk path. This costs one
+    Apple Event per property per track and is orders of magnitude slower.
+
     Get a batch of tracks from Music library.
 
     Args:
@@ -214,7 +338,8 @@ def load_library_from_music_app(batch_size=100, progress=True):
     Load entire Music library directly from Music app via AppleScript.
 
     Args:
-        batch_size (int): Number of tracks to fetch per AppleScript call (default: 100)
+        batch_size (int): Ignored. Retained for API compatibility; the reader
+            now issues one bulk AppleScript call per field, not per batch.
         progress (bool): Show progress messages (default: True)
 
     Returns:
@@ -223,33 +348,18 @@ def load_library_from_music_app(batch_size=100, progress=True):
     if progress:
         print("Reading library from Music app...")
 
-    # Get total track count
     total_tracks = get_track_count()
     if progress:
         print(f"Total tracks in library: {total_tracks:,}")
 
-    # Fetch tracks in batches
-    all_tracks = []
-    current_index = 1
-
-    while current_index <= total_tracks:
-        if progress:
-            pct = (current_index / total_tracks) * 100
-            print(f"  Fetching tracks {current_index:,}-{min(current_index + batch_size - 1, total_tracks):,} ({pct:.1f}%)...")
-
-        batch = get_tracks_batch(current_index, batch_size)
-        if not batch:
-            break
-
-        all_tracks.extend(batch)
-        current_index += batch_size
+    all_tracks = _fetch_tracks_bulk(
+        "library playlist 1", expected_count=total_tracks, progress=progress
+    )
 
     if progress:
         print(f"✓ Loaded {len(all_tracks):,} tracks from Music app")
 
-    # Convert to DataFrame
-    df = pd.DataFrame(all_tracks)
-    return df
+    return pd.DataFrame(all_tracks)
 
 
 def get_playlist_track_count(playlist_name: str) -> int:
@@ -264,7 +374,10 @@ def get_playlist_track_count(playlist_name: str) -> int:
 
 
 def get_playlist_tracks_batch(playlist_name: str, start_index: int, batch_size: int = 100) -> list:
-    """Fetch a batch of tracks from a named playlist by index (same fields as get_tracks_batch)."""
+    """LEGACY per-track reader for a named playlist; superseded by the bulk path.
+
+    Retained for compatibility. Same fields as get_tracks_batch, same slowness.
+    """
     escaped = playlist_name.replace('"', '\\"')
     script = f'''
     tell application "Music"
@@ -405,7 +518,7 @@ def load_playlist_from_music_app(playlist_name: str, batch_size: int = 100, prog
 
     Args:
         playlist_name: Exact playlist name as it appears in Music.app (case-sensitive).
-        batch_size: Tracks per AppleScript call.
+        batch_size: Ignored. Retained for API compatibility.
         progress: Print progress to stdout.
 
     Returns:
@@ -418,18 +531,10 @@ def load_playlist_from_music_app(playlist_name: str, batch_size: int = 100, prog
     if progress:
         print(f"  {total:,} tracks in playlist")
 
-    all_tracks = []
-    current_index = 1
-    while current_index <= total:
-        if progress:
-            pct = (current_index / total) * 100
-            end = min(current_index + batch_size - 1, total)
-            print(f"  Fetching tracks {current_index:,}-{end:,} ({pct:.1f}%)...")
-        batch = get_playlist_tracks_batch(playlist_name, current_index, batch_size)
-        if not batch:
-            break
-        all_tracks.extend(batch)
-        current_index += batch_size
+    escaped = playlist_name.replace('"', '\\"')
+    all_tracks = _fetch_tracks_bulk(
+        f'user playlist "{escaped}"', expected_count=total, progress=progress
+    )
 
     if progress:
         print(f"✓ Loaded {len(all_tracks):,} tracks from \"{playlist_name}\"")

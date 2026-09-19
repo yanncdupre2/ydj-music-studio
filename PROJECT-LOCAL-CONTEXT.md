@@ -9,7 +9,7 @@ paths, and integrations.
 
 ## Status by Area
 - **Mixer:** Rust SA + Held-Karp engine shipped (throughput measured 60x once, 2026-02-17, on a 17-track playlist (0.2 → 12.0 attempts/s) — a single benchmark, not a general guarantee; exact for n ≤ 20); live "Mixer input" reading, timestamped Markdown mix report, and opt-in `--export` write-back to a new Apple Music playlist (shipped 2026-06-27). **Open:** the input playlist name is still a string literal at `mixer/mixer.py:221` (`load_playlist_from_app("Mixer input")`) — track lists are no longer hardcoded, but the playlist name is.
-- **Library:** 4-source genre/year tagging, inconsistency resolver, and live AppleScript year+genre writes in production. Open: BPM/key audit + fill.
+- **Library:** 4-source genre/year tagging, inconsistency resolver, and live AppleScript year+genre writes in production. Measured 2026-09-19: 0 DJ tracks missing year or genre; 15 lack BPM, 17 lack a Camelot key.
 - **Downloads:** complete — yt-dlp rename + MKV→MP4 / Opus→AAC conversion.
 - **Karaoke:** `karaoke-process` script + SwiftUI GUI mature and in use.
 - **Infra:** shared `common/` utils, genre taxonomy, venv + Rust build in place. Open: Apple Music backup/restore workflow.
@@ -18,7 +18,7 @@ paths, and integrations.
 
 ### Safety Constraints
 - **AppleScript writes are live**: Year and genre updates go directly to Apple Music via AppleScript
-- **Always backup before bulk operations**: Apple Music library contains 10,000+ tracks
+- **Always backup before bulk operations**: Apple Music library contains 19,061 tracks (8,613 in the DJ playlists)
 - **Interactive confirmation**: Tagger requires manual keypress (1/2/S) per track — no unattended bulk writes
 
 ### Genre Taxonomy Rules
@@ -57,7 +57,7 @@ ydj-music-studio/
 │
 ├── common/                        # Shared utilities across subprojects
 │   ├── apple_music.py             # XML reader + AppleScript playlist/metadata access
-│   ├── load_from_music_app.py     # Batched Apple Music playlist reader
+│   ├── load_from_music_app.py     # Bulk Apple Music library/playlist reader
 │   ├── genres.json                # Canonical 31-genre taxonomy
 │   └── README.md
 │
@@ -150,6 +150,29 @@ pip install -r requirements.txt
 - fuzzywuzzy (fuzzy string matching)
 - python-Levenshtein (fuzzywuzzy speedup)
 
+### Reading the Library (performance)
+`common/load_from_music_app.py` reads one property across **every** track in a
+single Apple Event (`genre of every track of library playlist 1`), then zips the
+columns together. Cost scales with the number of *fields* (14 calls), not tracks:
+the full 19,061-track library loads in **~6 seconds**.
+
+Do not reintroduce the per-track pattern (`repeat ... set x to name of aTrack`).
+That costs one Apple Event per property per track — ~267,000 events for this
+library — and takes 20+ minutes. The legacy `get_tracks_batch()` /
+`get_playlist_tracks_batch()` functions still contain it and are retained only
+for compatibility; nothing calls them.
+
+Two traps the bulk reader handles, both of which silently corrupt data if
+ignored:
+- **Never pass bulk output through `run_applescript()`.** It calls `.strip()`,
+  and Python treats `\x1c`-`\x1f` as whitespace, so a trailing run of separators
+  (i.e. every track whose value is empty) is silently eaten and that column comes
+  back short. `_bulk_property()` strips only the newline.
+- **Absent properties arrive as the literal text `missing value`**, not `""`.
+  The field parsers normalize it.
+`_fetch_tracks_bulk()` asserts every column has one entry per track and raises
+rather than returning skewed rows.
+
 ### Apple Music Integration
 **Reading:** Smart playlists read directly via AppleScript (e.g., "Genre or Year Blank")
 **Writing:** Year and genre updated via AppleScript (`tag_tracks.py`)
@@ -222,7 +245,7 @@ cd src/ydj_mixer_engine && maturin develop --release
 ### Apple Music Library
 - **Location**: `~/YDJ Library.xml` (manual XML export)
 - **Format**: Apple PropertyList (plist) XML
-- **Size**: ~10,000 tracks
+- **Size**: 19,061 tracks total; 8,613 in the DJ library (`MASTER LIST DJ AUDIO` 6,252 + `MASTER LIST DJ VIDEO` 2,361, no overlap). Measured 2026-09-19.
 - **Update Frequency**: Manual export as needed
 
 ### Genre Taxonomy
@@ -258,10 +281,13 @@ for a strategic review. The retired `/rebaseline-project` and
 - Smart playlist "Genre or Year Blank" drives the missing-metadata tagging workflow
 - "Ignore year or genre inconsistencies" playlist filters out already-resolved groups
 - Interactive scripts (`tag_tracks.py`, `resolve_tagger.py`) put a single-keypress
-  prompt (`1` / `2` / `S`) in front of every live AppleScript write — verified in
-  `library-management/tag_tracks.py:151` immediately before the
-  `update_track_metadata()` call. `getch()` calls `tty.setraw()`, so they need a
-  real TTY: launch `run-tagger.sh` / `run-resolver.sh` in a **new Terminal
-  window** via `osascript`, never inline in an agent shell. The `osascript`
-  invocations live in the two `.claude/commands/` files.
+  prompt (`1` / `2` / `S`) in front of every live AppleScript write, and both
+  call `verify_track()` before writing to confirm the database ID still resolves
+  to the artist and name shown at the prompt — a mismatch is reported and
+  skipped, in `--dry-run` as well. In `tag_tracks.py` the keypress is at `:153`,
+  the identity check at `:178`, and the write at `:192`. `getch()` calls
+  `tty.setraw()`, so they need a real TTY: launch `run-tagger.sh` /
+  `run-resolver.sh` in a **new Terminal window** via `osascript`, never inline
+  in an agent shell. The `osascript` invocations live in the two
+  `.claude/commands/` files.
 - XML export (`~/YDJ Library.xml`) used for bulk detection; AppleScript used for reads/writes

@@ -4,7 +4,7 @@ This subfolder focuses on **metadata tagging, cleanup, and organization** for Ap
 
 ## Quick Context
 
-**Purpose:** Maintain consistent, accurate metadata across 10,000+ track Apple Music library
+**Purpose:** Maintain consistent, accurate metadata across the DJ library — 8,613 tracks inside a 19,061-track Apple Music library
 
 **Current Approach:** Read-only analysis using XML export; manual updates in Apple Music
 

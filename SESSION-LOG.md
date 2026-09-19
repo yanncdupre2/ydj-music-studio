@@ -4,32 +4,31 @@
 
 ### 2026-09-19 — Session close
 
-<!-- gtd-session: 777f5e73-64fe-4593-abb3-e170dbfc6078 -->
+<!-- gtd-session: 1e01d0fc-430b-4bca-9f6d-136bd4cc994f -->
 
 **Outcomes:**
-- Rewrote PLANNING.md as a current charter: 407 -> 272 lines, validator clean, all six required program sections intact.
-- Replaced the 10-entry historical 'Key Decisions and Rationale' narrative with 'Architecture Decisions in Force' - only decisions still governing behavior, each verified against code, with superseded reasoning left to Git and ARCHIVE/SESSION-LOG.md rather than copied into a new historical document.
-- Reconciled the XML-vs-AppleScript decision to current reality: live AppleScript is the read and write path; the single remaining XML consumer is cleanup.py:145 via apple_music.py:8, and that export is absent as of 2026-09-19.
-- Replaced 'Python First, Rust Later' with the current architecture: Rust inner loop via PyO3, ImportError fallback to pure Python (mixer.py:13-26), Held-Karp exact for n <= 20 (HELD_KARP_MAX_TRACKS=20, dispatched mixer.py:652), time-budgeted SA above.
-- Reconciled the karaoke v1/v2 evolution into single current guidance: one canonical script, channel fit chosen by mode (--invert-bands, --no-lut) rather than by declaring channels unsupported - which reverses the 2026-04-28 'not a good fit' caveat that the shipped flags had already made false.
-- Restructured the Objective around the program's actual center: library enrichment is the continuing work, and an area table states what each other area contributes and which reference owns its detail.
-- Removed superseded annotations, resolved Open Questions #2 and #5, obsolete phase language, and the duplicated Notes section; operational detail now links to its owning reference instead of being restated.
-- Corrected a safety claim before it shipped: a draft heading asserted library writes are gated per track and never unattended. Four other scripts in library-management/ write to the live library behind a single run-level input() confirmation, so the guarantee was narrowed to the interactive taggers and the batch writers named.
-- Corrected two downstream consumers: PROJECT-LOCAL-CONTEXT.md's Purpose now points at PLANNING's Objective instead of restating a drifted three-domain summary, and README.md's unqualified '60x throughput' claim was bounded to its single 2026-02-17 17-track benchmark, matching the bound already recorded for PLANNING and PLC.
+- Closed the track-identity gap in tag_tracks.py: it now calls verify_track() before writing and passes artist+name into update_track_metadata(), matching resolve_tagger.py. Verified offline with AppleScript stubbed - a stale ID is skipped with no write, a good track is written with artist+name, and --dry-run issues no writes while still running the check.
+- Replaced the per-track AppleScript read pattern in common/load_from_music_app.py with bulk column reads. The full 19,061-track library now loads in 6.19s; the previous pattern was still unfinished after 20 minutes. Verified byte-identical output against the legacy reader across all 14 columns on 300-row samples from both DJ master playlists.
+- Found and fixed two silent-corruption traps while building the bulk reader. Python counts \x1c-\x1f as whitespace, so run_applescript()'s .strip() ate trailing separators and returned short columns (Album came back 1,861 of 2,361). Absent properties also arrive as the literal text 'missing value', not ''. A desync assertion now refuses skewed rows rather than silently misaligning one track's metadata onto another - it is what caught the first bug.
+- Measured the Library Standing Condition for the first time: across 8,612 DJ tracks, 0 missing year and 0 missing genre (0.00%, target <5%) - the condition is met. BPM is absent on 15 tracks (0.17%) and a Camelot key on 17 (0.20%).
+- Answered the sub-threshold genre question with data: 7 genre strings covering 44 DJ tracks sit under 20 songs, 3 of them off-taxonomy (Special, K-Pop, Alternative).
+- Corrected the library-size claim across PLANNING, PLC and library-management/CLAUDE.md: 19,061 tracks total, of which the DJ library is 8,613 unique tracks (MASTER LIST DJ AUDIO 6,252 + MASTER LIST DJ VIDEO 2,361, zero overlap). The docs had said '10,000+' throughout.
+- Recorded the owner's decision on the isolated test library, and the no-deletion property it depends on, as a Standing Condition rather than a one-time check.
 
 **Decisions:**
-- Requirement dispositions: backup-before-bulk-writes -> Standing Condition (Infra) + existing task; read-only-XML-first -> superseded by shipped live writes; Python-first -> satisfied by the Rust port; compound taxonomy, artist+name search, Rust fallback, Held-Karp dispatch, modular per-area context -> verified still in force and retained.
-- Three requirements were found unmet with nothing carrying them and were preserved as explicit Open Questions rather than dropped: sub-threshold genre reclassification, the never-built isolated test library, and the uneven track-identity protection between the two taggers.
-- No tasks were added and no code was changed. Each preserved obligation is an owner decision about scope or priority, which this cleanup was not authorized to make.
-- Verified claims are stated with their evidence and bounded by it; performance figures name their benchmark rather than generalizing.
+- No separate test library. --dry-run plus the per-track keypress is sufficient preview and consent, conditional on no script in this program deleting a library track - verified today and now carried as a Standing Condition so a future delete path forces the decision to be revisited.
+- The DJ library, not the whole Apple Music library, is the enrichment scope: 8,613 tracks in the two master playlists used to run a dance party. Standing Conditions are measured against that subset.
+- Legacy per-track readers (get_tracks_batch, get_playlist_tracks_batch) are retained for compatibility and marked legacy rather than deleted; nothing calls them.
+- The bulk reader fails loudly on column desync rather than returning rows that look plausible but attach the wrong metadata to a track.
 
 **Unresolved:**
-- Sub-threshold genres: PLC, common/README.md and library-management/CLAUDE.md all promise that <20-song genres 'will be reclassified later'. No task or Standing Condition carries it. Schedule, redefine, or retire.
-- Isolated test library: live writes were adopted on the understanding that AppleScript work could be tested against a separate library. It was never built; the keypress gate and --dry-run are preview and consent, not isolation.
-- Track-identity protection is uneven: resolve_tagger.py verifies identity via verify_track() and passes artist+name; tag_tracks.py does neither and writes by database ID alone, which is the staleness failure the 2026-02-15 decision was adopted to fix. Both values are in scope at tag_tracks.py:137.
-- Four run-level-gated batch writers can still write to the production library outside the documented workflow; the outstanding backup/restore condition is what covers them.
-- Inflow cadence, the BPM/Comments write path, and the Library <5% measurement remain open and are carried by existing Now/Next tasks.
+- Sub-threshold genres: a 44-track cleanup across 7 strings. Still no task or Standing Condition carries it - schedule, redefine, or retire.
+- BPM/Comments write path: still unproven, but the backlog it blocks is 15 and 17 tracks, so hand-correction in Music.app may retire the need. Decide whether the spike is still worth doing.
+- One DJ track ID (8,612 of 8,613) did not match a row in the library read - likely a cloud or unavailable track, not investigated.
+- The Camelot-key count uses a \d{1,2}[AB] pattern over Comments, so 17 is approximate.
+- Four run-level-gated batch writers can still write to the production library outside the documented workflow.
+- Inflow cadence remains a stated expectation; the [infra] measurement task is still open and now has a fast reader to build on.
 
 **Possible next-session objectives:**
-- [infra] Measure inflow cadence from Apple Music Date Added and re-base the dormancy horizon (recommended)
-- Decide the three preserved obligations: sub-threshold genres, isolated test library, tagger identity protection
+- [infra] Measure inflow cadence from Apple Music Date Added - the bulk reader makes this cheap now (recommended)
+- Decide the sub-threshold genre cleanup (44 tracks) and whether the BPM/Comments spike is still warranted

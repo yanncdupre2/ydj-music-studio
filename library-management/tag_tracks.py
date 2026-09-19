@@ -16,10 +16,12 @@ import sys
 import termios
 import tty
 
-# Allow imports from library-management/
+# Allow imports from library-management/ and parent
 sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from sources.genre_mapper import YDJ_GENRES
+from common.apple_music import verify_track
 
 
 def getch():
@@ -169,11 +171,29 @@ def main():
 
         print(f"{ch} — {genre}")
 
+        # The prompt above identified this track by artist + name, but the write
+        # resolves it by database ID. IDs go stale between the research run that
+        # captured them and this tagging run, so confirm the ID still points at
+        # the track the user just approved before writing anything to it.
+        matches, actual_artist, actual_name = verify_track(
+            rec['track_id'], rec.get('artist', ''), rec.get('name', '')
+        )
+        if not matches:
+            print(f"  SKIPPED track {rec['track_id']}: ID mismatch!")
+            print(f"    Expected: {rec.get('artist')} - {rec.get('name')}")
+            print(f"    Actual:   {actual_artist} - {actual_name}")
+            errors += 1
+            continue
+
         if args.dry_run:
             print(f"  (dry run) Would set year={year}, genre={genre}")
             updated += 1
         else:
-            ok = update_track_metadata(rec['track_id'], year, genre)
+            ok = update_track_metadata(
+                rec['track_id'], year, genre,
+                artist=rec.get('artist'),
+                name=rec.get('name')
+            )
             if ok:
                 updated += 1
             else:
