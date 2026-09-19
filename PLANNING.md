@@ -16,12 +16,23 @@
 
 ## Objective
 
-A comprehensive DJ music production and library management system encompassing three interconnected domains:
+A comprehensive DJ music production and library management system spanning five
+areas that evolve independently:
 
-1. **Intelligent Playlist Optimization** - Harmonic mixing and BPM continuity using Camelot wheel system and simulated annealing
-2. **Automated Library Management** - Metadata tagging, cleanup, and LLM-powered genre categorization for Apple Music library
-3. **Efficient Media Processing** - YouTube download, conversion, karaoke video enhancement, and optimization for Apple ecosystem compatibility
+1. **Mixer** - harmonic mixing and BPM continuity using the Camelot wheel system,
+   solved as a track-ordering optimization (simulated annealing + Held-Karp exact)
+2. **Library** - metadata tagging, cleanup, and LLM-powered genre categorization
+   for a ~10k-track Apple Music library
+3. **Downloads** - YouTube acquisition, renaming, and conversion for Apple
+   ecosystem compatibility
+4. **Karaoke** - video enhancement for Final Cut Pro overlay blending
+   (`karaoke-process` script + SwiftUI GUI front-end)
+5. **Infra** - shared Apple Music access, the canonical genre taxonomy, the
+   build environment, and library-write safety
 
+*Restated 2026-09-19: this list previously named "three interconnected domains"
+and omitted karaoke entirely, despite karaoke being the most-worked area in the
+project's history. It now matches the five areas in Strategy and Breakdown.*
 
 **Why this program has no terminal state.** Music keeps arriving. Every new
 track added to the library needs genre, year, BPM and key before it is
@@ -33,7 +44,7 @@ cannot.
 
 ### In Scope
 - Harmonic mixing optimizer using Camelot wheel and key shifting
-- Apple Music library XML parsing and metadata analysis
+- Apple Music library metadata analysis, read live via AppleScript (XML export retained only for `library-management/cleanup.py`)
 - Duplicate/discrepancy detection and cleanup workflows
 - Genre taxonomy with 31 compound categories (e.g., "EDM, House, Techno")
 - YouTube media processing (MKV→MP4, Opus→AAC conversion)
@@ -41,13 +52,22 @@ cannot.
 - YouTube download renaming (`rename_youtube.py` — artist/title/type normalization using Apple Music library)
 - Karaoke video enhancement for FCP overlay blending (`karaoke-process` script: luminance-LUT remap with optional `--no-lut` floor-to-black mode + edge masking via ffmpeg; intro/outro preserve-or-blackout, zoom in/out, inverted band polarity, outline halo, background darken, custom sung color, and a SwiftUI GUI front-end)
 - File renaming based on metadata tags
-- Safe read-only Apple Music integration (initial phase)
+- Apple Music integration: bulk reads read-only; year and genre writes live and gated per track by the interactive tagger's keypress prompt
 
-### Out of Scope (Initial Release)
+*Two entries corrected 2026-09-19: "XML parsing" no longer describes the primary
+read path (AppleScript replaced it 2026-02-15), and "safe read-only integration
+(initial phase)" understated the current state - year/genre writes have been in
+production since 2026-02-15.*
+
+### Out of Scope
 - Real-time DJ performance tools or live mixing
 - Music streaming service integration beyond metadata lookup
 - Mobile apps or web interfaces
 - Collaborative playlist features
+
+*These are standing exclusions, not deferrals. A program has no release to defer
+them past; if one is ever taken up it is a scope change, recorded here with its
+date. The heading previously read "Out of Scope (Initial Release)".*
 
 ## Problem Statement
 
@@ -263,41 +283,62 @@ Shared Apple Music access (`common/`), the canonical genre taxonomy, the Python 
 
 ### Risks
 1. **Apple Music Library Corruption**
-   - Mitigation: Read-only XML approach initially; extensive testing in Phase 4; backup requirements
-   - Impact: High (could lose metadata for entire library)
+   - Mitigation: bulk reads stay read-only; every live write is gated per track by the interactive tagger's keypress prompt (`library-management/tag_tracks.py:151`)
+   - Outstanding: a documented, tested backup/restore workflow, which gates further bulk writes
+   - Impact: High (could lose metadata for an entire 10,000-track library)
 
 2. **Genre Taxonomy Drift**
-   - Risk: Over time, new genres added inconsistently
-   - Mitigation: LLM auto-tagging enforces canonical 31-genre list; periodic audits
+   - Risk: over time, new genres added inconsistently
+   - Mitigation: LLM auto-tagging enforces the canonical 31-genre list; periodic audits
 
-3. **Mixer Performance Bottleneck**
-   - Risk: Python optimization may not be sufficient; Rust port required sooner
-   - Mitigation: Performance profiling in Phase 3; consider algorithmic improvements first
+3. **Mixer Performance Bottleneck** - *resolved 2026-02-17.* The Rust SA engine
+   and the Held-Karp exact optimizer shipped; the mixer now runs to a user-chosen
+   time budget rather than against a performance ceiling. Retained as the record
+   of why the Rust port was undertaken.
 
 4. **AppleScript API Limitations**
-   - Risk: AppleScript may not support all metadata fields we need
-   - Mitigation: Research in Phase 4; fallback to XML workflow if necessary
+   - Risk: AppleScript may not support every metadata field the Standing Conditions require
+   - Status: year and genre are proven in production. BPM and Comments are read
+     (`common/apple_music.py:213,219`) but have no write path anywhere in the
+     codebase - every writer sets year and genre only (`tag_tracks.py:49,53`)
+   - Mitigation: spike the BPM/Comments write path before committing to the two
+     tagging tasks that depend on it
+
+*Phase-era framing removed from Risks 1, 3 and 4 on 2026-09-19. Risks describe
+present exposure, so "mitigation in Phase 3/Phase 4" no longer parses. The
+phase wording inside Key Decisions stays untouched, per the 2026-05-23 decision
+to keep those as historical record.*
 
 ### Dependencies
-- **Apple Music**: macOS-specific; project tied to Apple ecosystem
-- **ffmpeg/ffprobe**: Required for media processing; must be installed via Homebrew
-- **Python 3.x**: Core scripting language for automation
-- **Apple Music XML Export**: Manual export required; need to keep up-to-date
+- **Apple Music**: macOS-specific; the program is tied to the Apple ecosystem
+- **ffmpeg/ffprobe**: required for media processing; installed via Homebrew
+- **Python 3.x**: core scripting language for automation
+- **Rust toolchain**: required once to build `ydj_mixer_engine`; the Python optimizer is the fallback when it is not built
+- **Apple Music XML Export**: `library-management/cleanup.py:145` still reads
+  `~/YDJ Library.xml` through `common/apple_music.py:8`, and that export is
+  absent as of 2026-09-19 - so `cleanup.py` does not run until it is
+  re-exported. Every other reader moved to live AppleScript on 2026-02-15;
+  migrating `cleanup.py` would remove the last manual-export dependency.
 
-### External APIs (Future)
-- MusicBrainz API (release dates, genres)
-- Discogs API (vinyl/DJ metadata)
-- Spotify API (audio features, genres)
-- Last.fm API (genre tags, similar artists)
+### External APIs
+- **MusicBrainz** - integrated (`library-management/sources/musicbrainz.py`,
+  1 req/sec rate limit). *Moved out of "Future" on 2026-09-19; it has been one
+  of the four tagging sources since 2026-02-14.*
+- Discogs (vinyl/DJ metadata), Spotify (audio features), Last.fm (genre tags) -
+  considered, not integrated
 
 ## Standing Conditions
 
-- **Mixer:** optimizes directly from an Apple Music playlist chosen per run (not a hardcoded name) and writes the result back as a new playlist; exact optimum for n ≤ 20. *Partially met as of 2026-09-18: write-back and exact n ≤ 20 ship; the input playlist name is still the literal "Mixer input".*
-- **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy.
-- **Downloads:** files land in Apple-compatible formats with consistent `Artist - Title (type)` names.
-- **Karaoke:** overlays render predictably for FCP `screen`/`add` blending across the channels in use.
-- **Infra:** no data-loss incidents from library writes; backup/restore documented and tested.
+- **Mixer:** optimizes directly from an Apple Music playlist chosen per run (not a hardcoded name) and writes the result back as a new playlist; exact optimum for n ≤ 20. *Partially met as of 2026-09-18: write-back and exact n ≤ 20 ship; the input playlist name is still the literal "Mixer input" at `mixer/mixer.py:221`. Carried by a [mixer] task.*
+- **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy. *Unmeasured as of 2026-09-19 - no audit has ever produced the percentage, so this condition cannot currently be evaluated either way. The [library] metadata audit is what turns it from an assertion into a number.*
+- **Downloads:** files land in Apple-compatible formats with consistent `Artist - Title (type)` names. *Satisfied and stable since 2026-04-28. Qualitative, with no automated check; treated as a settled area rather than a live commitment, and reopened only if a format or naming regression appears.*
+- **Karaoke:** overlays render predictably for FCP `screen`/`add` blending across the channels in use. *Satisfied and stable since 2026-05-09. Qualitative and validated by eye per channel; treated as a settled area rather than a live commitment.*
+- **Infra:** no data-loss incidents from library writes; backup/restore documented and tested. *No incidents to date. Backup/restore is unmet as of 2026-09-18 and carried by an [infra] task; it gates further bulk writes.*
 
+*Annotated 2026-09-19: the Downloads and Karaoke conditions are qualitative and
+have no test behind them. Marking them settled is deliberate - it keeps the
+review honest about which conditions are actually live work (Mixer, Library,
+Infra) and which are historical statements of a bar already cleared.*
 
 ## Inflow
 
@@ -320,16 +361,23 @@ Shared Apple Music access (`common/`), the canonical genre taxonomy, the Python 
 ## Open Questions
 
 1. **Genre Taxonomy Evolution**
-   - How do we handle new music styles not covered by 31 canonical genres?
-   - Should we periodically review and expand taxonomy, or enforce strict list?
+   - How do we handle new music styles not covered by the 31 canonical genres?
+   - Should we periodically review and expand the taxonomy, or enforce a strict list?
 
-2. **Playlist Management**
-   - What's the best UX for specifying which playlist to optimize? (CLI arg, interactive picker, config file?)
-   - Should mixer support multiple playlists in one run?
+2. **Playlist Management** - *resolved 2026-09-19.* Selecting the playlist per
+   run is the answer, and it is now a Standing Condition carried by a [mixer]
+   task; `mixer/mixer.py:221` still hardcodes "Mixer input". Optimizing multiple
+   playlists in one invocation was considered and dropped: each run is
+   time-budgeted, so batching them only splits the budget.
 
 3. **Apple Music Integration**
-   - Can AppleScript reliably handle all metadata fields we need (year, genre, BPM, key, comments)?
-   - What's the safe concurrency model for batch updates (one-at-a-time, batched, transactional)?
+   - Year and genre writes are proven and in production. **BPM and Comments are
+     read but never written** - `common/apple_music.py:213,219` read them, and
+     every write path (`tag_tracks.py:49,53`) sets year and genre only. Whether
+     AppleScript writes them reliably is unproven, and it blocks both the BPM
+     and the Camelot-key tagging tasks.
+   - What is the safe concurrency model for batch updates (one-at-a-time,
+     batched, transactional)?
 
 4. **MusicBrainz/Discogs Integration**
    - Which API provides better metadata for DJ-oriented music (electronic, house, techno)?
