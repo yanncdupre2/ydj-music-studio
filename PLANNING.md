@@ -228,17 +228,25 @@ and keeps agent context scoped to the area being worked on.
   categorization — genre, release year, BPM or Camelot key. Re-running the
   tagger over already-categorized tracks is this program's own work and is
   **not** inflow.
-- **Observed cadence:** not derivable from this repository. The library lives
-  in Apple Music, outside the repo, and no ingestion log survives — the only
-  local trace is a single tagging batch from 2026-02-13. The basis is therefore
-  the stated expectation of roughly quarterly arrival, not a measurement, and
-  this field should be replaced with real numbers once an ingestion log exists.
-- **Dormancy horizon:** 12 months — four times the stated quarterly
-  expectation, deliberately generous because there is no measured gap to
-  anchor it.
-- **Last inflow:** 2026-06-27 — last committed library and mix work. This is a
-  proxy for arrival rather than a record of it, which is itself the gap the
-  cadence field describes.
+- **Observed cadence:** roughly monthly in normal operation, stated by the
+  owner on 2026-10-03, with multi-month lulls when attention goes elsewhere.
+  Still not measured, and harder to measure than it looks: `load_library()`
+  reads `~/YDJ Library.xml`, which no longer exists; `~/Music/iTunes/iTunes
+  Library.xml` is the abandoned pre-Music.app library, frozen at 2020-02-07;
+  and the live `~/Music/Music/Music Library.musiclibrary` is a bundle that
+  needs an AppleScript query or a manual export to yield `Date Added`. The
+  earlier "roughly quarterly" basis was an assumption and understated the
+  normal rate.
+- **Dormancy horizon:** 12 months — twelve times the monthly cadence above,
+  and well beyond the longest lull the owner recognises as normal. Kept
+  generous on purpose: the arrival depends on the owner pulling new music in,
+  so a quiet stretch reflects their attention rather than a supply that
+  stopped.
+- **Last inflow:** 2026-07-31 — approximate, stated by the owner, who last
+  added music around July 2026. Replaces the previous entry, which carried the
+  date of this program's own last commit: honest in its prose about being a
+  proxy, but `P-PLAN-009` reads the date and not the caveat, so the proxy was
+  being counted as an arrival.
 
 ## Risks and Dependencies
 
