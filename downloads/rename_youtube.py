@@ -106,7 +106,7 @@ FULLWIDTH_MAP = {
     '\u2014': '-',    # —
     '\u3010': '[',   # 【 → [
     '\u3011': ']',   # 】 → ]
-    '\u29f8': '/',   # ⧸ (big solidus)
+    '\u29f8': ' + ', # ⧸ (yt-dlp's stand-in for "/") → " + "; no slashes in the library
 }
 
 # Known karaoke channel/brand names — also stripped when KARAOKE_RE matched.
