@@ -36,7 +36,8 @@ Report how many were removed and any failures. Quota allows about 200 removals p
 day; if exhausted, the script stops cleanly and a re-run the next day finishes the job.
 
 ## First-time setup (once, by the user)
-1. Open https://console.cloud.google.com/ and create a project named `ydj-dl`.
+1. Open https://console.cloud.google.com/ and select the existing project
+   **YDJ Music Studio** (ID `ydj-music-studio`) in the top-bar project picker.
 2. **APIs & Services → Library** → search "YouTube Data API v3" → **Enable**.
 3. **Google Auth Platform** (formerly "OAuth consent screen") → **Get started**:
    app name `ydj-dl`, your email as support/contact, Audience **External**.
