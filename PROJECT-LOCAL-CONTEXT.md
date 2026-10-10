@@ -205,8 +205,14 @@ yt-dlp "https://www.youtube.com/watch?v=...&list=PL..."
 
 # "ydj dl" playlist (the to-get queue): /ydj-dl downloads it with
 # --download-archive ~/.config/yt-dlp/ydj-dl-archive.txt, so re-runs skip songs
-# already fetched and the playlist never needs emptying.
+# already fetched and the playlist never needs emptying (clear it by hand on the
+# playlist page if wanted; never delete/recreate it, the ID would change).
 # Safari must be signed in as ycdupre@gmail.com.
+
+# Naming: no "/" anywhere in library filenames (cross-platform export); yt-dlp's
+# "⧸" stand-in becomes " + ". Mashups: "Artist 1 & Artist 2 - Song A + Song B (...)".
+# rename_youtube.py mis-parses some titles (swapped artist, missing artist,
+# glued words): review the dry-run and fix outliers by hand rather than --apply blindly.
 
 # Rename downloaded files to consistent format
 python3 downloads/rename_youtube.py          # dry-run

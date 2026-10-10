@@ -83,6 +83,7 @@ cd src/ydj_mixer_engine && maturin develop --release
 
 ### Process YouTube Downloads
 ```bash
+/ydj-dl                                        # Claude Code: download the "ydj dl" playlist + rename dry-run
 yt-dlp "https://www.youtube.com/watch?v=..."   # uses ~/.config/yt-dlp/config
 python3 downloads/rename_youtube.py            # dry-run rename (live Apple Music artist list)
 python3 downloads/rename_youtube.py --apply    # actually rename

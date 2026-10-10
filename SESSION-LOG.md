@@ -2,32 +2,25 @@
 
 ## Recent Sessions
 
-### 2026-09-19 — Session close
+### 2026-10-10 — Session close
 
-<!-- gtd-session: 096bfd55-f03c-4431-bace-6ec910adf292 -->
+<!-- gtd-session: e3506137-a692-4eb1-8e98-5ebb06233d4b -->
 
 **Outcomes:**
-- Retagged the 2 K-Pop tracks to Pop through the interactive tagger (user confirmed each keypress); verified afterwards that both now read genre=Pop with year still 2025, since the request set year to None so only genre was written.
-- K-Pop is retired from the taxonomy: the DJ subset went from 30 to 29 distinct genre strings and from 3 off-taxonomy strings to 2.
-- Corrected the scope of the sub-threshold commitment before acting on it. It was never a 44-track job: 4 of the 7 sub-threshold strings are canonical master-list genres that are simply small inside the DJ subset - Classical, Lyrical has 5 DJ tracks but 1,459 library-wide. Only 5 tracks were genuinely off-taxonomy.
-- Grounded each proposed mapping in existing library tagging rather than a generic rule. K-Pop -> Pop is supported by BTS (4/4 Pop) and by track 61814, a near-duplicate of 61723 already tagged Pop. For 3SEX the user's blanket 'Alternative -> Alternative, Indie, Grunge, Punk' rule was not supported by their own data (0 of 120 tracks by Indochine and Christine and the Queens use that genre), so New-Wave, Techno-Pop, Electro-Pop, Synth-Pop was proposed and approved as the only genre both artists share.
-- Found that track 61063 (Indochine & Christine and the Queens - 3SEX) cannot be written by any supported path: cloud status = subscription, and it is unreachable through library playlist 1 by either database ID or artist+name. verify_track() returned NOT_FOUND and the tagger would have skipped it. Recorded as an open question with the manual workaround.
-- This also explains the loose end from the previous session: the one DJ track that failed to match (8,612 of 8,613 ids) is this same subscription track.
-- Reconciled the now-disproved taxonomy rule in its four homes - PLANNING, PROJECT-LOCAL-CONTEXT, common/README.md and library-management/CLAUDE.md all said smaller genres 'will be reclassified later', which conflated 'small' with 'off-taxonomy'.
+- Added the /ydj-dl Claude Code command (.claude/commands/ydj-dl.md): downloads the private "ydj dl" YouTube playlist with a dedicated --download-archive (~/.config/yt-dlp/ydj-dl-archive.txt), reports failures, then dry-runs rename_youtube.py.
+- First run downloaded all 36 playlist entries (35 new, 1 already present); all 36 are archived, so re-runs fetch only new additions.
+- Fixed rename_youtube.py: yt-dlp's "⧸" slash stand-in now maps to " + " instead of being stripped (which glued words together).
+- Renamed the 42 files in ~/Movies/YouTube Downloads/ by hand where the rename script mis-parsed (swapped or missing artists, glued words); all mashups now read "Artist 1 & Artist 2 - Song A + Song B (...)".
 
 **Decisions:**
-- Canonical genres that are small within the DJ subset are left alone. Small is not the same as off-taxonomy, and remapping Classical, Lyrical on the basis of 5 DJ tracks would be a taxonomy change rather than a cleanup.
-- Special (2 tracks, New Year countdown audio + video) is deliberately retained off-taxonomy. Holiday was offered as a canonical alternative and declined; it stays as a party-utility category.
-- 3SEX maps to New-Wave, Techno-Pop, Electro-Pop, Synth-Pop rather than the blanket Alternative mapping, on the evidence of how both artists are already tagged.
-- No bespoke write path was built for the subscription track. A playlist-scoped write would bypass the taggers' consent model for a single track; hand-editing in Music.app is the recorded workaround.
+- Dropped the planned /ydj-dl-empty (YouTube Data API OAuth playlist emptying): Google Cloud OAuth app setup (Branding, publishing) was more friction than the feature is worth. The download archive makes emptying unnecessary, and clearing the playlist by hand on its web page is quick. Code restorable from ec85626.
+- No slashes anywhere in library filenames, for cross-platform export; pipes were rejected too (illegal on Windows). Use " + " between mashed-up song titles.
+- yt-dlp keeps using Safari cookies; the user accepts re-signing in to Safari as ycdupre@gmail.com when the session lapses.
 
 **Unresolved:**
-- Track 61063 still carries genre 'Alternative'. It needs a manual Get Info edit in Music.app, and that edit may not survive a library re-sync.
-- Whether subscription tracks are in scope for tagging at all is undecided. If they are, the write path needs a playlist-scoped lookup that no current code has.
-- Tracks 61723 and 61814 are near-duplicates of the same song ('Golden (Lyrics Video)' vs 'Golden (Lyric Video)') differing by one character; both are now Pop, but the duplicate pair itself is unreconciled and is what /resolve-inconsistencies exists for.
-- BPM (15 tracks) and Camelot key (17 tracks) gaps are unchanged; the BPM/Comments write-path spike is still undecided.
-- Inflow cadence remains a stated expectation; the [infra] measurement task is still open.
+- Apple Music titles already in the library may still contain "/"; a read-only scan was offered but not taken up.
+- A half-configured "ydj-dl" OAuth app (Testing, no client) remains in the ydj-music-studio Google Cloud project; harmless, unused.
 
 **Possible next-session objectives:**
-- [infra] Measure inflow cadence from Apple Music Date Added - the bulk reader makes this cheap (recommended)
-- Reconcile the duplicate 'Golden' pair (61723 / 61814) via /resolve-inconsistencies
+- Audit metadata quality: surface tracks missing BPM or key data (recommended)
+- Import today's downloads into Apple Music and tag year/genre
