@@ -9,8 +9,8 @@ config at `~/.config/yt-dlp/config` (h264 ≤1080p, Safari cookies, saves to
 - **Playlist:** `https://www.youtube.com/playlist?list=PL_S6BfDZ5FTYSBd1-eE1ZAY6ISaevy30R`
 - **Download archive:** `~/.config/yt-dlp/ydj-dl-archive.txt` — one line per video
   yt-dlp has fully downloaded. It lets re-runs skip songs already fetched (renaming
-  defeats `--no-overwrites`), and it is the gate `/ydj-dl-empty` uses to decide what
-  is safe to remove from the playlist. Never edit or delete it by hand.
+  defeats `--no-overwrites`), so the playlist never needs emptying. Never edit or
+  delete it by hand.
 
 ### Step 1: Download (ONE command, run in the background)
 ```bash
@@ -29,8 +29,7 @@ From the output, report to the user:
 - How many entries the playlist had, how many were downloaded this run, and how many
   were skipped as already in the archive
 - Every entry that **failed** (unavailable, private, age-gated, format error), by
-  title — these are NOT in the archive and `/ydj-dl-empty` will leave them in the
-  playlist
+  title — these are NOT in the archive, so the next run retries them
 
 ### Step 3: Rename dry-run
 ```bash

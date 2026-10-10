@@ -204,9 +204,9 @@ yt-dlp "https://www.youtube.com/watch?v=...&list=PL..."
 # Downloads to ~/Movies/YouTube Downloads/
 
 # "ydj dl" playlist (the to-get queue): /ydj-dl downloads it with
-# --download-archive ~/.config/yt-dlp/ydj-dl-archive.txt; /ydj-dl-empty
-# (downloads/ydj_dl_empty.py, YouTube Data API OAuth, creds in ~/.shared-scripts/)
-# removes only entries in that archive. Safari must be signed in as ycdupre@gmail.com.
+# --download-archive ~/.config/yt-dlp/ydj-dl-archive.txt, so re-runs skip songs
+# already fetched and the playlist never needs emptying.
+# Safari must be signed in as ycdupre@gmail.com.
 
 # Rename downloaded files to consistent format
 python3 downloads/rename_youtube.py          # dry-run
