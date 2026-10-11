@@ -17,6 +17,8 @@ or edit tasks through the close request's `task_changes`, never by hand.
 
 - [ ] Spike: verify AppleScript write support for BPM and Comments (blocks BPM and Camelot-key tagging) [library] <!-- gtd-task: df2b12ee-7a91-45f5-88ad-584eb8d46fc7 -->
 
+- [ ] Investigate why tag_tracks/resolve_tagger left two MPEG-4 videos unwritten (Love To Go, Stronger) before further bulk writes [library] <!-- gtd-task: b4cba746-3846-4943-93ca-c1e43e52a209 -->
+
 ## Later
 
 - [ ] Select the mixer input playlist per run instead of the hardcoded "Mixer input" name [mixer] <!-- gtd-task: 52eff23e-87f7-4640-badf-2ad02cb3996f -->

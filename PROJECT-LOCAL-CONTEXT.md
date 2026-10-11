@@ -210,7 +210,11 @@ yt-dlp "https://www.youtube.com/watch?v=...&list=PL..."
 # Safari must be signed in as ycdupre@gmail.com.
 
 # Naming: no "/" anywhere in library filenames (cross-platform export); yt-dlp's
-# "⧸" stand-in becomes " + ". Mashups: "Artist 1 & Artist 2 - Song A + Song B (...)".
+# "⧸" stand-in becomes " + ". Mashups: "Artist 1 & Artist 2 - Song A + Song B (...)":
+# original artists in song order; performer/remixer credit in parentheses, covers
+# and YDJ's own included ("(YDJ Mashup)", "(Pomplamoose ft. KO Mashup Video)");
+# no credit -> no "Mashup" word. Official "x"/"vs" collab/remix credits are not
+# mashups and stay as released.
 # rename_youtube.py mis-parses some titles (swapped artist, missing artist,
 # glued words): review the dry-run and fix outliers by hand rather than --apply blindly.
 
@@ -297,6 +301,7 @@ cd src/ydj_mixer_engine && maturin develop --release
 Project-local commands (defined in `.claude/commands/`):
 - `/fill-missing-genres-years` — End-to-end workflow: research → LLM/web fill → interactive tagging
 - `/resolve-inconsistencies` — Detect and resolve year/genre conflicts across track variants (229 groups reported at first detection, 2026-02-14)
+- `/ydj-dl` — Download new songs from the "ydj dl" YouTube playlist, then dry-run the rename
 
 Session lifecycle is owned by the installed GTD skills, not by this project:
 `gtd-start-session` to open, `gtd-finish-session` to close (it owns TODO
@@ -307,6 +312,11 @@ for a strategic review. The retired `/rebaseline-project` and
 ## Notes
 - Smart playlist "Genre or Year Blank" drives the missing-metadata tagging workflow
 - "Ignore year or genre inconsistencies" playlist filters out already-resolved groups
+- Year rule: variants (remix, extended, edit, video, live) take the song's original
+  release year — MusicBrainz and purchased copies often carry reissue/compilation
+  years, so LLM knowledge + web search outvote them. Mashups take the mashup's own
+  year (e.g. "Matt One 2026 Mashup" -> 2026). A different-artist edit of a song
+  (e.g. a 2022 techno edit of a 1982 track) is better ignored than forced to match.
 - Interactive scripts (`tag_tracks.py`, `resolve_tagger.py`) put a single-keypress
   prompt (`1` / `2` / `S`) in front of every live AppleScript write, and both
   call `verify_track()` before writing to confirm the database ID still resolves
