@@ -99,7 +99,8 @@ ydj-music-studio/
 │   └── karaoke-process.md         # Authoritative reference: goal/rationale, usage, options, channel-specific starting points, tuning workflow
 ├── pillarbox/                     # Find + fix videos with bars baked into the picture (see README)
 │   ├── scan.py                    # Playlist scan -> data/report.html + report.csv (cached, read-only)
-│   └── widen.py                   # Non-linear 16:9 fill or crop-to-picture; copies audio + Serato/MIK tags
+│   ├── widen.py                   # Non-linear 16:9 fill or crop-to-picture; copies audio + Serato/MIK tags
+│   └── apply.py                   # In-place library conversion: "-backup" copy, verify, swap; log in data/conversions.log
 └── src/
     └── ydj_mixer_engine/          # Rust SA + Held-Karp engine
         ├── Cargo.toml             # pyo3 + rand deps

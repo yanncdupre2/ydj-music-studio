@@ -152,13 +152,14 @@ def main():
         raw, box = detect_box(str(src), info)
     bw, bh, bx, by = box
     measured = float(Fraction(raw[0], raw[1]) * info["sar"])
+    corrected = True
     if args.aspect:
         true_aspect = parse_aspect(args.aspect)
     elif PAL_SQUEEZED[0] <= measured < PAL_SQUEEZED[1]:
         true_aspect = 4 / 3
         print(f"Picture measures {measured:.3f}:1, treated as 4:3 squeezed by lost PAL pixel shape")
     else:
-        true_aspect = measured
+        true_aspect, corrected = measured, False
     print(f"Picture box {bw}x{bh} at {bx},{by} in a {info['width']}x{info['height']} frame; "
           f"true shape {true_aspect:.3f}:1")
 
@@ -173,8 +174,11 @@ def main():
         if args.mode == "fill":
             graph, extra_inputs = fill_graph(box, true_aspect, args.zoom, args.center, workdir)
         else:
+            # Without a shape correction, only non-square pixels are resampled (to square);
+            # square-pixel sources are cropped with no scaling at all.
+            out_w = even(bh * true_aspect) if corrected else even(bw * info["sar"])
             graph, extra_inputs = (f"[0:v]crop={bw}:{bh}:{bx}:{by},"
-                                   f"scale={even(bh * true_aspect)}:{bh}:flags=lanczos,setsar=1[v]"), []
+                                   f"scale={out_w}:{bh}:flags=lanczos,setsar=1[v]"), []
 
         cmd = ["ffmpeg", "-hide_banner", "-v", "error", "-stats", "-y"]
         if args.still is not None:
