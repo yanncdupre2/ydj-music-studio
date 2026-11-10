@@ -63,6 +63,7 @@ ydj-music-studio/
 ├── common/                        # Shared utilities across subprojects
 │   ├── apple_music.py             # XML reader + AppleScript playlist/metadata access
 │   ├── load_from_music_app.py     # Bulk Apple Music library/playlist reader
+│   ├── playlist_paths.swift       # Playlist file paths via iTunesLibrary framework (fast)
 │   ├── genres.json                # Canonical 31-genre taxonomy
 │   └── README.md
 │
@@ -96,6 +97,9 @@ ydj-music-studio/
 │   ├── karaoke-process            # Bash + ffmpeg script (installed at ~/.local/bin/karaoke-process)
 │   ├── karaoke-process-gui/       # SwiftUI front-end (installed at /Applications/KaraokeProcessGUI.app)
 │   └── karaoke-process.md         # Authoritative reference: goal/rationale, usage, options, channel-specific starting points, tuning workflow
+├── pillarbox/                     # Find + fix videos with bars baked into the picture (see README)
+│   ├── scan.py                    # Playlist scan -> data/report.html + report.csv (cached, read-only)
+│   └── widen.py                   # Non-linear 16:9 fill or crop-to-picture; copies audio + Serato/MIK tags
 └── src/
     └── ydj_mixer_engine/          # Rust SA + Held-Karp engine
         ├── Cargo.toml             # pyo3 + rand deps
@@ -188,6 +192,13 @@ ignored:
   The field parsers normalize it.
 `_fetch_tracks_bulk()` asserts every column has one entry per track and raises
 rather than returning skewed rows.
+
+**`location` is the exception:** Music resolves every file, so even the bulk form
+costs ~0.2 s per track (~7 min for the 2,439-track video playlist, past
+AppleScript's 2-minute timeout). For file paths use
+`common.apple_music.get_playlist_file_paths()`, which runs
+`common/playlist_paths.swift` against the library database through the
+iTunesLibrary framework: ~9 s for the same playlist.
 
 ### Apple Music Integration
 **Reading:** Smart playlists read directly via AppleScript (e.g., "Genre or Year Blank")

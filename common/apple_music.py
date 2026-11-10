@@ -315,6 +315,38 @@ def get_all_artists_from_app():
     return artists
 
 
+def get_playlist_file_paths(playlist_name):
+    """Return the tracks of an Apple Music playlist with their file paths.
+
+    Reads the library database via the iTunesLibrary framework
+    (common/playlist_paths.swift): ~9 s for 2,400 tracks, where asking Music
+    for `location` over AppleScript costs ~0.2 s per track.
+
+    Args:
+        playlist_name (str): Name of the playlist (case-sensitive)
+
+    Returns:
+        list[dict]: one {'Name', 'Artist', 'Path'} per track, in playlist
+        order; 'Path' is None when the track has no local file.
+    """
+    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'playlist_paths.swift')
+    try:
+        result = subprocess.run(
+            ['swift', helper, playlist_name],
+            capture_output=True, text=True, check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise ValueError(f"Error reading playlist '{playlist_name}': {e.stderr}")
+
+    tracks = []
+    for line in result.stdout.rstrip('\n').split('\n'):
+        parts = line.split('\t')
+        if len(parts) != 3:
+            continue
+        tracks.append({'Name': parts[0], 'Artist': parts[1], 'Path': parts[2] or None})
+    return tracks
+
+
 def load_dj_playlists_from_app():
     """Load tracks from both DJ master playlists via AppleScript.
 
