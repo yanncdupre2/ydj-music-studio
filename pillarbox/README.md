@@ -87,6 +87,7 @@ venv/bin/python pillarbox/widen.py VIDEO --crop 1410:1080:256:0    # box from re
 ```bash
 venv/bin/python pillarbox/apply.py VIDEO [VIDEO ...]            # convert, keeping "<name>-backup.mp4"
 venv/bin/python pillarbox/apply.py --restore VIDEO [VIDEO ...]  # undo
+venv/bin/python pillarbox/apply.py --trash-backups VIDEO [VIDEO ...]  # once checked: backups to the Trash
 ```
 
 Per video: clone the original to `<name>-backup<ext>` in the same folder
@@ -118,3 +119,7 @@ Other categories need an explicit `--mode`. Every outcome is appended to
 `pillarbox/data/conversions.log` (tab-separated: time, status, category,
 original, backup, detail). `--restore` moves the converted file to the
 Trash and renames the backup back.
+`--trash-backups` moves each video's backup to the Trash once you've checked
+the results, and only if the converted file is in place. Trashing uses
+macOS's `/usr/bin/trash`, which renames on name clashes (two artists'
+`Apologize (Video)-backup.mp4`) and keeps Finder's Put Back.

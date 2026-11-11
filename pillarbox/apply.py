@@ -16,6 +16,7 @@ Mode per scan category (looked up in the scan cache; --mode overrides):
 Usage:
     venv/bin/python pillarbox/apply.py VIDEO [VIDEO ...]
     venv/bin/python pillarbox/apply.py --restore VIDEO [VIDEO ...]   # put the backups back
+    venv/bin/python pillarbox/apply.py --trash-backups VIDEO [VIDEO ...]  # once checked: backups to the Trash
 """
 
 import argparse
@@ -52,7 +53,13 @@ def log(status, category, path, detail=""):
 
 
 def trash(path):
-    """Move to the macOS Trash, under a unique name so nothing there is overwritten."""
+    """Move to the macOS Trash without overwriting anything already there.
+
+    /usr/bin/trash (macOS 14+) renames on name clashes and keeps Finder's Put Back;
+    without it, move under a unique name."""
+    if Path("/usr/bin/trash").exists():
+        subprocess.run(["/usr/bin/trash", str(path)], check=True)
+        return
     dest = Path.home() / ".Trash" / path.name
     if dest.exists():
         dest = dest.with_name(f"{path.stem} {time.strftime('%Y%m%d-%H%M%S')}{path.suffix}")
@@ -179,12 +186,28 @@ def restore(path):
     print(f"RESTORED {path}")
 
 
+def trash_backup(path):
+    backup = backup_path(path)
+    if not backup.exists():
+        print(f"SKIP  no backup for {path}")
+        return False
+    if not path.exists() or path.stat().st_size == 0:
+        print(f"SKIP  converted file missing, keeping the backup: {backup}")
+        return False
+    trash(backup)
+    log("backup-trashed", "", path)
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("videos", nargs="+")
     ap.add_argument("--mode", choices=["crop", "fill"], help="override the per-category mode")
-    ap.add_argument("--restore", action="store_true", help="move each converted file to the Trash "
-                                                           "and rename its backup back")
+    action = ap.add_mutually_exclusive_group()
+    action.add_argument("--restore", action="store_true", help="move each converted file to the Trash "
+                                                               "and rename its backup back")
+    action.add_argument("--trash-backups", action="store_true", help="once checked: move each video's "
+                                                                     "-backup to the Trash")
     args = ap.parse_args()
 
     paths = [Path(os.path.abspath(v)) for v in args.videos]
@@ -194,6 +217,10 @@ def main():
     if args.restore:
         for p in paths:
             restore(p)
+        return
+    if args.trash_backups:
+        done = sum(trash_backup(p) for p in paths)
+        print(f"{done}/{len(paths)} backups moved to the Trash. Log: {LOG_PATH}")
         return
     done = sum(convert(p, args.mode) for p in paths)
     print(f"\n{done}/{len(paths)} converted. Log: {LOG_PATH}")
