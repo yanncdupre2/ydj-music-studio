@@ -21,6 +21,8 @@ or edit tasks through the close request's `task_changes`, never by hand.
 
 - [ ] Download the missing DJ videos: Moon Ray - Comanchero (Video) (re-download) and Avril Lavigne - Sk8er Boi (Video) (iCloud purchase). Then remove the extra 'DJ ÖZGÜR - Comanchero' entry in MASTER LIST DJ VIDEO (kind Music, left by relinking Moon Ray) with Keep File: it shares the real DJ ÖZGÜR file [library] <!-- gtd-task: 00239d2a-640f-4c12-af24-7bdd03c0bebd -->
 
+- [ ] Limit "Genre or Year Blank" (or /fill-missing-genres-years) to the DJ playlists; it now also holds the 1,449 out-of-scope Lefaou imports [library] <!-- gtd-task: 8642754a-ee1e-424d-8520-17d691e7bdb0 -->
+
 ## Later
 
 - [ ] Select the mixer input playlist per run instead of the hardcoded "Mixer input" name [mixer] <!-- gtd-task: 52eff23e-87f7-4640-badf-2ad02cb3996f -->

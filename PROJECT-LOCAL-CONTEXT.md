@@ -19,7 +19,7 @@ paths, and integrations.
 
 ### Safety Constraints
 - **AppleScript writes are live**: Year and genre updates go directly to Apple Music via AppleScript
-- **Always backup before bulk operations**: Apple Music library contains 18,881 tracks (8,622 in the DJ playlists)
+- **Always backup before bulk operations**: Apple Music library contains 20,330 tracks (8,622 in the DJ playlists)
 - **Interactive confirmation**: Tagger requires manual keypress (1/2/S) per track — no unattended bulk writes
 
 ### Genre Taxonomy Rules
@@ -218,6 +218,22 @@ Playlist), which deletes no library track.
   - Fallback: Database ID (legacy compatibility)
 **XML Export:** Used for bulk metadata reading (`~/YDJ Library.xml`)
 
+**Importing files** (learned on the 2026-11-11 Lefaou import, 1,449 MP3s):
+- `add {files…} to user playlist "…"` is unreliable in batches: it can return
+  no track IDs, add only part of the list, or add a track to the library but
+  not to the playlist. Import one file at a time with `add (POSIX file p)`,
+  then find the new track by artist + name + `date added`, and `duplicate` it
+  to the playlist. Look the track up before every add, so a retry never adds
+  it twice.
+- Music copies an added file into
+  `~/Music/iTunes/iTunes Music/Music/<Artist>/<Album>/`, so the source file is
+  free to delete once the import is verified.
+- Clean MP3 tags before importing. mutagen merges any ID3v1 tag into the
+  ID3v2 frames on load, and some files carry two ID3v1 tags stacked at the
+  end, so remove every v1 tag before rewriting v2 and save with
+  `v1=0, v2_version=3`. Otherwise stale v1 genre, year and comment values
+  come back.
+
 ### YouTube Downloading (yt-dlp)
 ```bash
 # Download a video or playlist
@@ -298,7 +314,7 @@ cd src/ydj_mixer_engine && maturin develop --release
 ### Apple Music Library
 - **Location**: `~/YDJ Library.xml` (manual XML export)
 - **Format**: Apple PropertyList (plist) XML
-- **Size**: 18,881 tracks total; 8,622 in the DJ library (`MASTER LIST DJ AUDIO` 6,272 + `MASTER LIST DJ VIDEO` 2,350, no overlap). Measured 2026-11-11.
+- **Size**: 20,330 tracks total; 8,622 in the DJ library (`MASTER LIST DJ AUDIO` 6,272 + `MASTER LIST DJ VIDEO` 2,350, no overlap). Measured 2026-11-11.
 - **Update Frequency**: Manual export as needed
 
 ### Genre Taxonomy

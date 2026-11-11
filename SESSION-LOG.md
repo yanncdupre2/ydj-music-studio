@@ -4,28 +4,22 @@
 
 ### 2026-11-11 — Session close
 
-<!-- gtd-session: c694d160-dbbd-47bc-a592-83b83744cee2 -->
+<!-- gtd-session: 553bf0c0-a31e-446f-afa4-41040a496188 -->
 
 **Outcomes:**
-- Checked every local library video (2,650 files) for duplicates: no byte-identical files. The '9 videos listed 9x' in MASTER LIST DJ VIDEO was a Music.app bug that stores the last batch added to a playlist again as a block (also 18 tracks x19 in MASTER LIST DJ AUDIO): real entries, but the same track and file.
-- Compared the video/audio data and sampled frames of every same-name pair; about 12 were the same video under two names. The user removed the weaker copy of each in Music.app (files to the Trash), the repeated playlist entries, the stale entries whose files were gone (Muse Plug In Baby, VIZE End Of Slaphouse), the extra Weird Al entry that shared a file, and moved the 3 audio-only files to MASTER LIST DJ AUDIO.
-- Re-verified after cleanup: MASTER LIST DJ VIDEO 2,350 and MASTER LIST DJ AUDIO 6,272 entries, no repeats, no same-title duplicates. Library 18,881 tracks, DJ library 8,622; counts refreshed in PLANNING, PROJECT-LOCAL-CONTEXT and library-management/CLAUDE.md.
-- PROJECT-LOCAL-CONTEXT now says to count playlists by unique track, and records the duplicate-video rule (purchased + plain pair is kept; judge by content, not title; Keep File when entries share a file).
-- Added a Next task to download the two DJ videos still missing locally.
+- Integrated the Lefaou hard-drive MP3s: 1,449 added to the Apple Music library in playlist "Lefaou import", verified one-to-one against the library (copied into the media folder, correct artist/title, length within 1 s, genre and year blank, no duplicates). Library now 20,330 tracks; DJ playlists unchanged (6,272 + 2,350); no existing track modified or removed.
+- Moved 223 source files to the Trash (108 damaged, 62 below 192 kbps or fake bitrate, 53 in-folder duplicates); skipped 353 already owned. The user is trashing the rest of the source folder.
+- PLANNING: library count 20,330; Last inflow 2026-11-11 (this import); Date Added is readable through the iTunesLibrary framework, which unblocks measuring inflow cadence.
+- PROJECT-LOCAL-CONTEXT: count refreshed and a new "Importing files" note (add one file at a time, Music copies into its media folder, strip stacked ID3v1 tags before rewriting MP3 tags). library-management/CLAUDE.md count refreshed.
 
 **Decisions:**
-- A Purchased (possibly DRM-locked) copy plus a plain copy of the same video is a deliberate pair, not a duplicate (32 such pairs).
-- Repeated playlist entries and duplicate tracks are removed by hand in Music.app, not by script, keeping the no-deletion Standing Condition intact.
-
-**Completed tasks:**
-- Deduplicate MASTER LIST DJ VIDEO (9 videos listed 9x each, e.g. Love To Go) and remove from Music or relocate the 4 tracks whose video files are missing (see pillarbox/data/report.csv) [library]
+- Import rules: 192 kbps floor (spectral cutoff exposes fake high bitrates); library only, the user moves tracks into the DJ playlists by hand; genre and year blanked because filename years are CD-rip years; audio imported for the 51 songs owned only as video.
+- Same Artist - Title is a duplicate regardless of the filename year; length differences over 25 s were imported with an (Edit)/(Long Version) label.
+- The 9 upgrade candidates (higher-bitrate copies of owned 128-160k tracks) and the 15 borderline files (10-25 s off the owned copy) are dropped with the source folder; no task carried.
 
 **Unresolved:**
-- Relinking the missing Moon Ray - Comanchero entry pointed it at the DJ ÖZGÜR remix file, so MASTER LIST DJ VIDEO lists that remix twice (one entry now reads as kind Music). Carried by the new download task.
-- Love To Go was in both repeated blocks; whether the repeats explain the open 'two MPEG-4 videos left unwritten' task is not verified.
-- Ideas NYE 2027 still holds 271 entries for 29 songs; small repeats remain in 'Ignore year or genre inconsistencies', 'Purchased' and 'Serie Rock' (left as is).
+- "Genre or Year Blank" is library-wide and now holds the 1,449 imports, which are outside the DJ tagging scope until moved into the DJ playlists; a /fill-missing-genres-years run would process all of them.
 
 **Possible next-session objectives:**
-- Audit metadata quality: list DJ tracks missing BPM or key, fix them, and decide whether the BPM/Comments write spike and the two blocked Later tasks can go (Now top) (recommended)
-- Measure inflow cadence from Date Added (cheap now via the iTunesLibrary framework) and re-base the dormancy horizon
-- Download the two missing DJ videos and remove the extra DJ ÖZGÜR - Comanchero entry
+- Measure inflow cadence from Date Added via the iTunesLibrary framework and re-base the dormancy horizon in PLANNING Inflow (recommended)
+- Audit metadata quality: surface DJ tracks missing BPM or key data

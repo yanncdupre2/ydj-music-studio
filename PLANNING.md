@@ -19,7 +19,7 @@
 Keep the DJ music library continuously enriched and usable for harmonic mixing,
 and build the tools that make that work fast enough to sustain.
 
-The Apple Music library holds 18,881 tracks, but the DJ library proper is the
+The Apple Music library holds 20,330 tracks, but the DJ library proper is the
 8,622 unique tracks in `MASTER LIST DJ AUDIO` (6,272) and `MASTER LIST DJ VIDEO`
 (2,350) — the two playlists used to run a dance party, with no overlap between
 them. That subset is where enrichment effort goes and what the Standing
@@ -232,28 +232,28 @@ and keeps agent context scoped to the area being worked on.
   **not** inflow.
 - **Observed cadence:** roughly monthly in normal operation, stated by the
   owner on 2026-10-03, with multi-month lulls when attention goes elsewhere.
-  Still not measured, and harder to measure than it looks: `load_library()`
-  reads `~/YDJ Library.xml`, which no longer exists; `~/Music/iTunes/iTunes
-  Library.xml` is the abandoned pre-Music.app library, frozen at 2020-02-07;
-  and the live `~/Music/Music/Music Library.musiclibrary` is a bundle that
-  needs an AppleScript query or a manual export to yield `Date Added`. The
-  earlier "roughly quarterly" basis was an assumption and understated the
-  normal rate.
+  Still not measured. `load_library()` reads `~/YDJ Library.xml`, which no
+  longer exists, and `~/Music/iTunes/iTunes Library.xml` is the abandoned
+  pre-Music.app library, frozen at 2020-02-07. The live library does yield
+  `Date Added` through the iTunesLibrary framework (`ITLibMediaItem.addedDate`,
+  the same API `common/playlist_paths.swift` uses), confirmed 2026-11-11 by a
+  full-library dump. The earlier "roughly quarterly" basis was an assumption
+  and understated the normal rate.
 - **Dormancy horizon:** 12 months — twelve times the monthly cadence above,
   and well beyond the longest lull the owner recognises as normal. Kept
   generous on purpose: the arrival depends on the owner pulling new music in,
   so a quiet stretch reflects their attention rather than a supply that
   stopped.
-- **Last inflow:** 2026-07-31 — approximate, stated by the owner, who last
-  added music around July 2026. Replaces the previous entry, which carried the
-  date of this program's own last commit: honest in its prose about being a
-  proxy, but `P-PLAN-009` reads the date and not the caveat, so the proxy was
-  being counted as an arrival.
+- **Last inflow:** 2026-11-11 — 1,449 MP3s from the Lefaou hard drive added
+  to the library (playlist "Lefaou import"), with genre and year left blank
+  for categorization. Record only real arrivals here: `P-PLAN-009` reads the
+  date and not any caveat, so a proxy such as a commit date counts as an
+  arrival.
 
 ## Risks and Dependencies
 
 ### Risks
-1. **Apple Music library corruption** — Impact: high; the library holds 18,881
+1. **Apple Music library corruption** — Impact: high; the library holds 20,330
    tracks, 8,622 of them in the DJ playlists. Bulk reads stay read-only and every live write is gated per track.
    A documented, tested backup/restore workflow is still outstanding and gates
    further bulk writes.
