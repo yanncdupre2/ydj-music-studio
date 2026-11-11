@@ -61,7 +61,7 @@ def trash(path):
 
 def streams(path):
     out = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
-                          "stream=codec_type,width,height,nb_frames,duration", "-of", "json", str(path)],
+                          "stream=codec_type,width,height,nb_frames,duration,start_time", "-of", "json", str(path)],
                          capture_output=True, text=True, check=True).stdout
     return {s["codec_type"]: s for s in json.loads(out)["streams"] if s["codec_type"] in ("video", "audio")}
 
@@ -80,15 +80,37 @@ def tags(path):
         return None
 
 
+def packets(path, stream, entries):
+    """Packet rows actually read from the file (container header counts can disagree)."""
+    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", stream, "-show_entries",
+                          f"packet={entries}", "-of", "csv=p=0", str(path)],
+                         capture_output=True, text=True, check=True).stdout
+    return [line.rstrip(",").split(",") for line in out.splitlines() if line.strip()]
+
+
+def shown_frames(path):
+    """Video packets a player displays. Skips pre-roll frames with negative timestamps
+    (hidden by the edit list) and empty MPEG-4 Part 2 'not coded' placeholders; ffmpeg
+    drops both, so a faithful re-encode legitimately has fewer frames."""
+    def shown(pts, size):
+        return (pts == "N/A" or float(pts) >= 0) and int(size) > 8
+    return sum(shown(pts, size) for pts, size in packets(path, "v:0", "pts_time,size"))
+
+
 def verify(original, converted):
-    """Return a list of problems; empty means same timing, audio and tags."""
+    """Return a list of problems; empty means same shown frames, identical audio and tags."""
     a, b = streams(original), streams(converted)
     problems = []
-    if a["video"].get("nb_frames") != b["video"].get("nb_frames"):
-        problems.append(f"frame count {a['video'].get('nb_frames')} -> {b['video'].get('nb_frames')}")
+    fa, fb = shown_frames(original), len(packets(converted, "v:0", "size"))
+    if fa != fb:
+        problems.append(f"shown frames {fa} -> {fb}")
+    if abs(float(a["video"].get("duration", 0)) - float(b["video"].get("duration", 0))) > 0.1:
+        problems.append("video duration differs")
     if "audio" in a:
-        if "audio" not in b or a["audio"].get("duration") != b["audio"].get("duration"):
-            problems.append("audio duration differs")
+        # every audio packet must carry over untouched: same timestamps, durations, sizes, bytes
+        entries = "pts,dts,duration,size"
+        if "audio" not in b or packets(original, "a:0", entries) != packets(converted, "a:0", entries):
+            problems.append("audio packets differ")
         elif audio_md5(original) != audio_md5(converted):
             problems.append("audio data differs")
     if tags(original) != tags(converted):
@@ -126,6 +148,8 @@ def convert(path, mode_override):
         sys.exit(f"Backup copy is incomplete; stopped before touching {path}")
 
     converted = path.with_name(f"{path.stem} [{mode_args[1]}].mp4")
+    if converted.exists():  # left over from an earlier failed attempt
+        trash(converted)
     result = subprocess.run([sys.executable, str(HERE / "widen.py"), str(path), *mode_args])
     problems = ["widen.py failed"] if result.returncode != 0 or not converted.exists() else verify(path, converted)
     if problems:

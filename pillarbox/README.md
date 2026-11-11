@@ -91,12 +91,20 @@ venv/bin/python pillarbox/apply.py --restore VIDEO [VIDEO ...]  # undo
 
 Per video: clone the original to `<name>-backup<ext>` in the same folder
 (APFS clone, so it costs no extra space until the original is replaced),
-run `widen.py`, verify the result (same frame count, bit-identical audio,
-identical tags), then rename the converted file over the original. The
-path Apple Music knows never changes, so nothing needs re-importing. If
-verification fails, the original is left untouched and the backup goes to
-the Trash. A video that already has a `-backup` is skipped, so a second run
-can't overwrite the real original.
+run `widen.py`, verify the result, then rename the converted file over the
+original. The path Apple Music knows never changes, so nothing needs
+re-importing. If verification fails, the original is left untouched and the
+backup goes to the Trash. A video that already has a `-backup` is skipped,
+so a second run can't overwrite the real original.
+
+Verification compares what is actually played, not container header counts
+(old YouTube uploads often disagree with themselves):
+- video: same number of shown frames (pre-roll frames with negative
+  timestamps and empty MPEG-4 Part 2 "not coded" placeholders don't count,
+  since ffmpeg drops both) and durations within 0.1 s;
+- audio: identical packet list (timestamps, durations, sizes) and identical
+  data checksum, so cue points stay aligned;
+- tags: identical (a tagless source stays tagless).
 
 The mode comes from the video's scan category (current cache entry):
 

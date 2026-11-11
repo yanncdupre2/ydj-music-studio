@@ -122,6 +122,8 @@ def copy_tags(src, dst):
         print("Source is not an MP4; tags not copied")
         return
     if s.tags is None:
+        if d.tags is not None:  # drop ffmpeg's encoder tag so the output is as tagless as the source
+            d.delete()
         return
     if d.tags is None:
         d.add_tags()
