@@ -19,7 +19,7 @@ or edit tasks through the close request's `task_changes`, never by hand.
 
 - [ ] Investigate why tag_tracks/resolve_tagger left two MPEG-4 videos unwritten (Love To Go, Stronger) before further bulk writes [library] <!-- gtd-task: b4cba746-3846-4943-93ca-c1e43e52a209 -->
 
-- [ ] Deduplicate MASTER LIST DJ VIDEO (9 videos listed 9x each, e.g. Love To Go) and remove from Music or relocate the 4 tracks whose video files are missing (see pillarbox/data/report.csv) [library] <!-- gtd-task: 0659c94f-912a-4cc6-a723-1dfab1a5d1f3 -->
+- [ ] Download the missing DJ videos: Moon Ray - Comanchero (Video) (re-download) and Avril Lavigne - Sk8er Boi (Video) (iCloud purchase). Then remove the extra 'DJ ÖZGÜR - Comanchero' entry in MASTER LIST DJ VIDEO (kind Music, left by relinking Moon Ray) with Keep File: it shares the real DJ ÖZGÜR file [library] <!-- gtd-task: 00239d2a-640f-4c12-af24-7bdd03c0bebd -->
 
 ## Later
 

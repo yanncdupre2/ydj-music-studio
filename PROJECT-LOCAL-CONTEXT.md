@@ -19,7 +19,7 @@ paths, and integrations.
 
 ### Safety Constraints
 - **AppleScript writes are live**: Year and genre updates go directly to Apple Music via AppleScript
-- **Always backup before bulk operations**: Apple Music library contains 19,061 tracks (8,613 in the DJ playlists)
+- **Always backup before bulk operations**: Apple Music library contains 18,881 tracks (8,622 in the DJ playlists)
 - **Interactive confirmation**: Tagger requires manual keypress (1/2/S) per track — no unattended bulk writes
 
 ### Genre Taxonomy Rules
@@ -202,6 +202,15 @@ AppleScript's 2-minute timeout). For file paths use
 `common/playlist_paths.swift` against the library database through the
 iTunesLibrary framework: ~9 s for the same playlist.
 
+**Count playlists by unique track, not by entry.** Music sometimes stores the
+last batch added to a playlist several more times as a block at the end (seen
+2026-11-10: 9 videos x9 in `MASTER LIST DJ VIDEO`, 18 tracks x19 in
+`MASTER LIST DJ AUDIO`). The repeats are real entries, so AppleScript's
+`count of tracks` and the iTunesLibrary framework both include them, but they
+are the same track and file, not duplicates on disk. Dedupe by persistent ID
+before measuring, and remove repeats by hand in Music.app (Remove from
+Playlist), which deletes no library track.
+
 ### Apple Music Integration
 **Reading:** Smart playlists read directly via AppleScript (e.g., "Genre or Year Blank")
 **Writing:** Year and genre updated via AppleScript (`tag_tracks.py`)
@@ -289,7 +298,7 @@ cd src/ydj_mixer_engine && maturin develop --release
 ### Apple Music Library
 - **Location**: `~/YDJ Library.xml` (manual XML export)
 - **Format**: Apple PropertyList (plist) XML
-- **Size**: 19,061 tracks total; 8,613 in the DJ library (`MASTER LIST DJ AUDIO` 6,252 + `MASTER LIST DJ VIDEO` 2,361, no overlap). Measured 2026-09-19.
+- **Size**: 18,881 tracks total; 8,622 in the DJ library (`MASTER LIST DJ AUDIO` 6,272 + `MASTER LIST DJ VIDEO` 2,350, no overlap). Measured 2026-11-11.
 - **Update Frequency**: Manual export as needed
 
 ### Genre Taxonomy
@@ -340,4 +349,11 @@ for a strategic review. The retired `/rebaseline-project` and
   `run-resolver.sh` in a **new Terminal window** via `osascript`, never inline
   in an agent shell. The `osascript` invocations live in the two
   `.claude/commands/` files.
+- Duplicate videos: a Purchased copy (sometimes DRM-locked) plus a plain,
+  unprotected copy of the same video is kept as a pair on purpose. Only copies
+  that are both plain and hold the same content are duplicates. Judge by the
+  streams or frames, not the title: labels like "(Lyric Video)" and
+  "(Lyrics Video)" sat on identical files, while identical titles sometimes
+  hid different videos. Remove the extra in Music.app; when two entries share
+  one file, choose Keep File, or the remaining entry loses its video.
 - XML export (`~/YDJ Library.xml`) used for bulk detection; AppleScript used for reads/writes

@@ -2,30 +2,30 @@
 
 ## Recent Sessions
 
-### 2026-11-10 — Session close
+### 2026-11-11 — Session close
 
-<!-- gtd-session: fc9f0c1f-eb26-4747-8457-cf0e4f01f329 -->
+<!-- gtd-session: c694d160-dbbd-47bc-a592-83b83744cee2 -->
 
 **Outcomes:**
-- Built `pillarbox/` (README there): `scan.py` finds DJ videos whose picture doesn't fill 16:9, `widen.py` crops or non-linearly fills one video, `apply.py` converts library files in place behind a `-backup` copy with a log and restore. Committed in 069d9fb, bf594d2, 7257c56, 9ccdffa.
-- Scanned MASTER LIST DJ VIDEO (2,440 entries, 2,368 unique files) in ~7 min: 13 squeezed 5:4 pillarbox, 123 4:3 pillarbox, 198 widescreen letterboxed inside 4:3, 82 other pillarbox, 20 soft/blurred sides, 522 native 4:3 files, 445 letterbox, 952 ok.
-- Converted 231 videos in place, all verified before the swap (shown frames, identical audio packets and checksum, identical tags incl. Serato/MIK): 95 near-16:9 letterbox-in-4x3 cropped, 13 pillarbox-5x4 shape-corrected and filled to 1920x1080, 123 pillarbox-4x3 cropped to 4:3. User spot-checked in Music; the 231 backups (13.7 GB) were trashed and the Trash emptied.
-- Added `common/playlist_paths.swift` + `get_playlist_file_paths()`: playlist file paths via the iTunesLibrary framework in ~9 s, where Music's `location` over AppleScript takes ~0.2 s per track.
-- Logged a Next task to deduplicate MASTER LIST DJ VIDEO and remove or relocate the 4 tracks with missing video files.
+- Checked every local library video (2,650 files) for duplicates: no byte-identical files. The '9 videos listed 9x' in MASTER LIST DJ VIDEO was a Music.app bug that stores the last batch added to a playlist again as a block (also 18 tracks x19 in MASTER LIST DJ AUDIO): real entries, but the same track and file.
+- Compared the video/audio data and sampled frames of every same-name pair; about 12 were the same video under two names. The user removed the weaker copy of each in Music.app (files to the Trash), the repeated playlist entries, the stale entries whose files were gone (Muse Plug In Baby, VIZE End Of Slaphouse), the extra Weird Al entry that shared a file, and moved the 3 audio-only files to MASTER LIST DJ AUDIO.
+- Re-verified after cleanup: MASTER LIST DJ VIDEO 2,350 and MASTER LIST DJ AUDIO 6,272 entries, no repeats, no same-title duplicates. Library 18,881 tracks, DJ library 8,622; counts refreshed in PLANNING, PROJECT-LOCAL-CONTEXT and library-management/CLAUDE.md.
+- PROJECT-LOCAL-CONTEXT now says to count playlists by unique track, and records the duplicate-video rule (purchased + plain pair is kept; judge by content, not title; Keep File when entries share a file).
+- Added a Next task to download the two DJ videos still missing locally.
 
 **Decisions:**
-- Per-category treatment: near-16:9 letterbox-in-4x3 -> crop; pillarbox-5x4 (4:3 PAL that lost its pixel shape) -> correct to 4:3, 5% zoom, cubic non-linear fill (x1.08 centre, x1.95 edge); pillarbox-4x3 -> pure crop at the measured shape, no zoom or stretch, not forced to exactly 1440 wide.
-- Library files are replaced at the same path so Apple Music needs no re-import; each original is kept as `<name>-backup` until checked.
-- 5:4 band narrowed to 1.20-1.275: pictures measuring 1.275-1.29 are 4:3 with dark edges, not PAL squeeze.
-- Verification checks what is played (shown frames, audio packet list + checksum), not container header counts, which old YouTube uploads often get wrong.
+- A Purchased (possibly DRM-locked) copy plus a plain copy of the same video is a deliberate pair, not a duplicate (32 such pairs).
+- Repeated playlist entries and duplicate tracks are removed by hand in Music.app, not by script, keeping the no-deletion Standing Condition intact.
+
+**Completed tasks:**
+- Deduplicate MASTER LIST DJ VIDEO (9 videos listed 9x each, e.g. Love To Go) and remove from Music or relocate the 4 tracks whose video files are missing (see pillarbox/data/report.csv) [library]
 
 **Unresolved:**
-- 3 files in MASTER LIST DJ VIDEO have no video stream (Flight Facilities - Down To Earth (Wankelmut Remix), Lost Frequencies ft. Janieck Devy - Reality, Marlon Roudette - When The Beat Drops Out); 2 videos were too dark to classify.
-- Love To Go is one of the 9 videos listed 9x in the playlist; possibly related to the open task about two MPEG-4 videos left unwritten.
-- Extreme Ways (Bourne identity version) is a 320x172 source; the user plans to delete it.
-- The soft-sides detector is about half false positives (lyric videos, plain backgrounds); treat that category as a review list.
+- Relinking the missing Moon Ray - Comanchero entry pointed it at the DJ ÖZGÜR remix file, so MASTER LIST DJ VIDEO lists that remix twice (one entry now reads as kind Music). Carried by the new download task.
+- Love To Go was in both repeated blocks; whether the repeats explain the open 'two MPEG-4 videos left unwritten' task is not verified.
+- Ideas NYE 2027 still holds 271 entries for 29 songs; small repeats remain in 'Ignore year or genre inconsistencies', 'Purchased' and 'Serie Rock' (left as is).
 
 **Possible next-session objectives:**
-- Audit metadata quality: surface DJ tracks missing BPM or key data (Now top) (recommended)
-- Deduplicate MASTER LIST DJ VIDEO and resolve the 4 missing and 3 audio-only video entries
-- Decide treatment for the remaining pillarbox candidates
+- Audit metadata quality: list DJ tracks missing BPM or key, fix them, and decide whether the BPM/Comments write spike and the two blocked Later tasks can go (Now top) (recommended)
+- Measure inflow cadence from Date Added (cheap now via the iTunesLibrary framework) and re-base the dormancy horizon
+- Download the two missing DJ videos and remove the extra DJ ÖZGÜR - Comanchero entry

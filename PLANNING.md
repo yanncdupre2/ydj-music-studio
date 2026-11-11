@@ -19,12 +19,12 @@
 Keep the DJ music library continuously enriched and usable for harmonic mixing,
 and build the tools that make that work fast enough to sustain.
 
-The Apple Music library holds 19,061 tracks, but the DJ library proper is the
-8,613 unique tracks in `MASTER LIST DJ AUDIO` (6,252) and `MASTER LIST DJ VIDEO`
-(2,361) — the two playlists used to run a dance party, with no overlap between
+The Apple Music library holds 18,881 tracks, but the DJ library proper is the
+8,622 unique tracks in `MASTER LIST DJ AUDIO` (6,272) and `MASTER LIST DJ VIDEO`
+(2,350) — the two playlists used to run a dance party, with no overlap between
 them. That subset is where enrichment effort goes and what the Standing
 Conditions below are measured against; the rest of the library is not in scope
-for tagging. (Counts measured 2026-09-19.)
+for tagging. (Counts measured 2026-11-11.)
 
 Library management and enrichment is the ongoing work. Every other area exists
 to serve it:
@@ -253,8 +253,8 @@ and keeps agent context scoped to the area being worked on.
 ## Risks and Dependencies
 
 ### Risks
-1. **Apple Music library corruption** — Impact: high; the library holds 19,061
-   tracks, 8,613 of them in the DJ playlists. Bulk reads stay read-only and every live write is gated per track.
+1. **Apple Music library corruption** — Impact: high; the library holds 18,881
+   tracks, 8,622 of them in the DJ playlists. Bulk reads stay read-only and every live write is gated per track.
    A documented, tested backup/restore workflow is still outstanding and gates
    further bulk writes.
 2. **Genre taxonomy drift** — New genres accumulate inconsistently over time.
