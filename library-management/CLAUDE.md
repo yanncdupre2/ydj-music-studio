@@ -6,14 +6,16 @@ This subfolder focuses on **metadata tagging, cleanup, and organization** for Ap
 
 **Purpose:** Maintain consistent, accurate metadata across the DJ library — 8,622 tracks inside a 20,330-track Apple Music library
 
-**Current Approach:** Read-only analysis using XML export; manual updates in Apple Music
-
-**Future:** Direct AppleScript write operations (Phase 4) with safety validation
+**Current Approach:** Live AppleScript reads; live writes through gated tools only (year/genre
+taggers, artist spelling cleanup). `PLANNING.md` "Architecture Decisions" governs write safety
+and overrides anything older here.
 
 ## Key Files
 
 - `cleanup.py` - Discrepancy detection for duplicate/similar tracks
 - `rename_files.py` - File renaming based on metadata tags
+- `tag_tracks.py` / `resolve_tagger.py` - Year/genre writes, one keypress per track
+- `artist_spellings.py` - One spelling per artist (scan / review / apply / undo); see README
 - Imports `common/apple_music.py` for library loading
 
 ## Architecture
@@ -47,18 +49,19 @@ This subfolder focuses on **metadata tagging, cleanup, and organization** for Ap
 
 ## Current Limitations
 
-1. **Read-only workflow** - Cannot write to Apple Music library yet (safety)
-2. **Manual updates** - User must update Apple Music manually after analysis
-3. **XML dependency** - Requires manual export from Apple Music
-4. **No API integration** - MusicBrainz/Discogs lookup not implemented yet
+1. **Subscription tracks can't be written** by script (see `PROJECT-LOCAL-CONTEXT.md`)
+2. **XML dependency** - `cleanup.py` still reads the manual XML export
+3. **BPM / Comments** have no write path
 
 ## Execution Constraints
 
 ### Safety First
-- **NEVER modify Apple Music library directly** (until Phase 4 testing complete)
-- Scripts are read-only analysis tools
-- Always suggest user backup library before bulk operations
-- Test AppleScript operations on isolated test library first
+- Write to the library only through the gated tools above, never ad hoc
+- Back up first: `venv/bin/python common/library_backup.py backup --note "before X"`
+- A separate test library is not required (`PLANNING.md`: no workflow deletes a track)
+- Renaming an artist/album moves files ("Keep Music Media folder organized" is on);
+  VirtualDJ then shows them as new songs without cue points. Accepted; **never edit
+  VirtualDJ's files** (`database.xml`, lists) to compensate
 
 ### Genre Taxonomy Rules
 - **Use exact genre strings** from `../common/genres.json`
@@ -125,4 +128,4 @@ When user asks "what genre should this be?":
 - **Downloads** produces files that need tagging and import to library
 - **Common** provides shared Apple Music library access
 
-When working on library management, focus on consistency, safety, and the canonical genre taxonomy. Any destructive operations (write to library) must wait for Phase 4 with proper testing infrastructure.
+When working on library management, focus on consistency, safety, and the canonical genre taxonomy. Library writes follow the gating, backup and undo rules in `PLANNING.md`.

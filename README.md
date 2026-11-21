@@ -27,6 +27,7 @@ YDJ Music Studio addresses five core workflows for DJs:
 - 4-source consensus tagging (duplicates / LLM knowledge / web search / MusicBrainz)
 - Live AppleScript writes for year + genre (no XML refresh dependency)
 - Interactive single-keypress tagger (`tag_tracks.py`) and inconsistency resolver (`resolve_tagger.py`)
+- Artist spelling cleanup (`artist_spellings.py`): one spelling per artist, MusicBrainz suggestions, journaled writes with undo
 - `/fill-missing-genres-years` and `/resolve-inconsistencies` slash commands
 
 ### Downloads Processing

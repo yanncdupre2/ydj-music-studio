@@ -49,6 +49,7 @@ cannot.
 
 ### In Scope
 - Metadata enrichment for the Apple Music library: genre, release year, BPM, Camelot key
+- Artist name consistency: one spelling per artist across Artist and Album Artist (added 2026-11-21)
 - Consensus tagging from four sources (duplicates, LLM, web, MusicBrainz) and interactive inconsistency resolution
 - A canonical 31-genre compound taxonomy (`common/genres.json`)
 - Harmonic mixing optimizer using the Camelot wheel and ±1 semitone key shifts
@@ -166,6 +167,31 @@ per track. None is part of the documented workflow, but all can write to the
 production library, and they are precisely the kind of bulk operation that
 should be preceded by a `common/library_backup.py backup`. A fifth,
 `interactive_tagger.py`, is dead code and is carried by an [infra] task.
+
+### Artist spelling cleanup: consent per artist, backed by backup and journal
+`library-management/artist_spellings.py` writes Artist / Album Artist. Unlike the
+taggers it takes one keypress per artist in `review`, not per track: an artist
+can span 150+ tracks, and the choice is the same for all of them. That is
+accepted (2026-11-21) because `apply` adds what the per-track prompt was for:
+a fresh library backup first, a check of each track's current value against the
+scan, a journal entry before every write, a read-back after it, and `undo`.
+`--dry-run` and `--only` (trial runs) precede real runs.
+
+Renaming moves files ("Keep Music Media folder organized" is on), and VirtualDJ
+keys cue points by path, so it shows a moved file as a new song without its
+cues. Measured in the trial: case-only changes don't move files, accent changes
+do. The first run moved 89 files (13 artists). Turning "Keep organized" off
+during the cleanup was rejected: folders would keep stale names and files could
+move at an unrelated later edit.
+
+**No script edits VirtualDJ's files.** A repair step that rewrote moved paths in
+VirtualDJ's `database.xml` was built and removed the same day (2026-11-21). It
+read and wrote the file as text, which turned all ~460,000 CRLF line ends into
+LF; VirtualDJ judged the database broken, started empty, and on quit saved 8,590
+of 54,330 entries. The original was restored from Time Machine. Losing the cue
+points of moved files is accepted instead: they are re-checked before each
+party anyway. Report which files moved (the journal's paths) rather than
+repairing VirtualDJ.
 
 ### Library backup: copy what is saved, restore through Choose Library
 The library database is held by a background process, AMPLibraryAgent, not by

@@ -9,7 +9,7 @@ paths, and integrations.
 
 ## Status by Area
 - **Mixer:** Rust SA + Held-Karp engine shipped (throughput measured 60x once, 2026-02-17, on a 17-track playlist (0.2 → 12.0 attempts/s) — a single benchmark, not a general guarantee; exact for n ≤ 20); live "Mixer input" reading, timestamped Markdown mix report, and opt-in `--export` write-back to a new Apple Music playlist (shipped 2026-06-27). **Open:** the input playlist name is still a string literal at `mixer/mixer.py:221` (`load_playlist_from_app("Mixer input")`) — track lists are no longer hardcoded, but the playlist name is.
-- **Library:** 4-source genre/year tagging, inconsistency resolver, and live AppleScript year+genre writes in production. Measured 2026-09-19: 0 DJ tracks missing year or genre; 15 lack BPM, 17 lack a Camelot key; 29 genre strings in use, 2 off-taxonomy.
+- **Library:** 4-source genre/year tagging, inconsistency resolver, and live AppleScript year+genre writes in production. Measured 2026-09-19: 0 DJ tracks missing year or genre; 15 lack BPM, 17 lack a Camelot key; 29 genre strings in use, 2 off-taxonomy. Artist spelling cleanup (`artist_spellings.py`) first run 2026-11-21: 81 artists, 714 tracks changed, 89 files moved; **open:** 23 tracks refused with "File permission error (-54)" and 1 subscription track (Mylene Farmer, "XXL (Blue Stahli Remix)") still carry old spellings; 247 tracks have no artist at all.
 - **Downloads:** complete — yt-dlp rename + MKV→MP4 / Opus→AAC conversion.
 - **Karaoke:** `karaoke-process` script + SwiftUI GUI mature and in use.
 - **Pillarbox:** `scan.py` / `widen.py` / `apply.py` shipped 2026-11-10. First pass converted 231 videos in place (95 near-16:9 `letterbox-in-4x3` cropped, 13 `pillarbox-5x4` shape-corrected and filled, 123 `pillarbox-4x3` cropped to 4:3); backups checked and discarded. Not yet treated: 103 `letterbox-in-4x3` not near 16:9, 82 `pillarbox-other`, 21 `soft-sides` (about half false positives), and the 4:3 `native-narrow` files.
@@ -185,9 +185,21 @@ back over them. Restore = Option-launch Music → Choose Library → pick the
 prepared package; the original stays untouched, so switching back is the undo.
 
 **Keep Music Media folder organized is ON** (confirmed 2026-11-21): editing a
-track's artist or album makes Music move or rename its file on disk. Any
-artist-name write must expect file paths to change (Serato crates, pillarbox
-conversions.log paths).
+track's artist or album makes Music move or rename its file on disk (accent
+changes move files; case-only changes don't). Any artist-name write must expect
+file paths to change: VirtualDJ then shows moved files as new songs without
+their cue points (accepted), and pillarbox `conversions.log` paths go stale.
+
+### DJ software
+**VirtualDJ** is the DJ app (no Serato installed; the `com.serato.dj` tags in
+files are written by Mixed In Key). Its database
+`~/Library/Application Support/VirtualDJ/database.xml` (~54k entries, ~80k cue
+points) is keyed by file path and written with CRLF line ends. **Never edit it
+or its `.vdjfolder` / `.m3u` lists from a script**: on 2026-11-21 a text-mode
+rewrite normalized the line ends, VirtualDJ judged the database broken and
+started empty, and the original came back only from Time Machine. Reading is
+fine. **djay Pro** identifies tracks by Apple Music persistent ID, so file moves
+don't affect it.
 
 ### Subscription (Apple Music) tracks are not writable
 A track with `cloud status = subscription` (a `.m4p` from an Apple Music

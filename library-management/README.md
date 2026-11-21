@@ -6,9 +6,58 @@ Tools for organizing, tagging, and cleaning up Apple Music library metadata.
 
 - **`cleanup.py`** - Interactive discrepancy detection and resolution for duplicate/similar tracks
 - **`rename_files.py`** - Rename audio files based on metadata tags
+- **`artist_spellings.py`** - Make each artist's name consistent (Artist + Album Artist)
 - **`tag_updater.py`** - *(Future)* Batch metadata updates
 
 ## Features
+
+### Artist Spelling Cleanup (`artist_spellings.py`)
+
+The library spelled some artists several ways ("Mc Solaar" / "MC Solaar",
+"Tiesto" / "Tiësto"). This finds them across Artist and Album Artist, lets you
+pick one spelling per artist, and writes it.
+
+```bash
+venv/bin/python library-management/artist_spellings.py scan       # read-only: groups + MusicBrainz names
+venv/bin/python library-management/artist_spellings.py review     # in Terminal.app: one keypress per artist
+venv/bin/python library-management/artist_spellings.py apply --dry-run
+venv/bin/python library-management/artist_spellings.py apply      # backs up the library first
+venv/bin/python library-management/artist_spellings.py undo       # put the old values back
+```
+
+- **scan** groups spellings that differ only by case, accents, spacing, Unicode
+  encoding or typographic punctuation, and asks MusicBrainz for each group's
+  spelling (cached in `data/musicbrainz_artists.json`; a 503 is MusicBrainz
+  rate limiting, retried, and an unfinished lookup is retried on the next scan).
+- **review** shows each spelling with its Artist / Album Artist counts, plus
+  MusicBrainz's and an accent-free one, and how many files each choice would
+  move. Decisions are saved as you go (`data/artist_decisions.json`); quit and
+  resume any time. Needs a real terminal (raw keypresses).
+- **apply** takes a library backup (`common/library_backup.py`), then per track
+  checks the current value, journals the change with the file's path before and
+  after (`data/artist_journal.jsonl`), writes, and reads back. Apple Music
+  subscription tracks can't be written by script and are listed to fix by hand.
+  `--only ARTIST ...` limits it to some artists (trial runs).
+- **Files move** when "Keep Music Media folder organized" is on (it is) and the
+  name the folder is built from changes: Album Artist if set, else Artist;
+  compilation albums stay in `Compilations`. Measured in the 2026-11-21 trial:
+  a case-only change (`Mc Solaar` → `MC Solaar`) moved nothing, Music only
+  re-cased the stored path; an accent change (`Claude Francois` → `Claude
+  François`) moved the file and removed the old folder.
+- **VirtualDJ** keys its database (cue points, BPM/key scan) by file path, so it
+  shows a moved file as a new song without its cues. That is accepted: cues get
+  re-checked before each party anyway. The journal's `path_before` / `path_after`
+  tell which files moved. Do not edit VirtualDJ's `database.xml` or lists from a
+  script: see "Artist spelling cleanup" in `PLANNING.md` for what that did.
+- **undo** restores journaled values newest first.
+
+First run (2026-11-21): 81 artists decided, 714 tracks changed, 89 files moved
+(13 artists, all accent changes), 23 tracks refused by Music with "File
+permission error (-54)" and left unchanged, 1 subscription track to fix by hand.
+
+Consent is per artist (one keypress in review settles all its tracks), not per
+track as in the taggers; the backup and journal are the safety net (see
+`PLANNING.md`).
 
 ### Discrepancy Detection (`cleanup.py`)
 
@@ -149,8 +198,8 @@ python3 rename_files.py
 
 ## Safety Notes
 
-- **Always backup Apple Music library before bulk operations**
+- **Always back up the Apple Music library before bulk operations**: `common/library_backup.py backup`
 - Use DRY_RUN mode first when renaming files
 - cleanup.py is read-only (displays only, doesn't modify)
-- Current workflow uses XML export (read-only) for safety
-- Direct Apple Music write deferred to Phase 4 with extensive testing
+- Live writes: year/genre via the taggers (keypress per track), artist names via
+  `artist_spellings.py` (keypress per artist, backup + journal + undo)
