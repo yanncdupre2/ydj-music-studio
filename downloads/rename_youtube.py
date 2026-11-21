@@ -3,7 +3,8 @@
 
 Uses the Apple Music library artist list to disambiguate artist vs. title
 when YouTube titles are inconsistently ordered ("Title - Artist" is swapped),
-and gives an exactly matched artist the library's spelling ("ERASURE" -> "Erasure").
+and gives an exactly matched artist the library's spelling ("ERASURE" -> "Erasure")
+when the library spells that artist only one way.
 
 Output format:
     Artist - Title (Video).mp4          # for music videos
@@ -158,12 +159,12 @@ def normalize_for_matching(text):
 def build_artist_set():
     """Load all known artist names live from Apple Music via AppleScript."""
     artists = {a.strip() for a in get_all_artists_from_app() if a and a.strip()}
-    # Build a lookup: normalized -> original (prefer longer names)
+    # Build a lookup: normalized -> library spelling, or None when the library spells
+    # the name several ways ("A-ha" / "a-Ha"): picking one would be a guess
     lookup = {}
     for a in artists:
         key = normalize_for_matching(a)
-        if key not in lookup or len(a) > len(lookup[key]):
-            lookup[key] = a
+        lookup[key] = a if key not in lookup else None
     return lookup
 
 
@@ -201,9 +202,12 @@ def extract_feat(text):
 
 
 def try_exact_artist_match(text, artist_lookup):
-    """Check if the entire text matches a known artist (normalized). Returns original-case name or None."""
+    """If the entire text is a known artist (normalized), return its library spelling,
+    or the text as written when the library spells it several ways. Otherwise None."""
     norm = normalize_for_matching(text)
-    return artist_lookup.get(norm)
+    if norm not in artist_lookup:
+        return None
+    return artist_lookup[norm] or text.strip()
 
 
 def find_artist_in_text(text, artist_lookup):
@@ -318,11 +322,22 @@ def classify_and_parse(stem, artist_lookup):
     # karaoke-related noise (bracketed groups, dash/pipe-separated tails, etc.)
     # We re-add a clean [Karaoke] suffix at the end.
     if is_karaoke:
+        # No " - " separator: find the artist first, or the karaoke-tail patterns
+        # below take it along ("Sometimes karaoke Erasure")
+        if not DASH_SEP_RE.search(name):
+            found, remaining = find_artist_in_text(name, artist_lookup)
+            if found and remaining:
+                name = f"{found} - {remaining}"
         for pat in KARAOKE_NOISE_PATTERNS:
             prev = None
             while prev != name:
                 prev = name
-                name = pat.sub('', name)
+                stripped = pat.sub('', name)
+                # Never strip the last " - " separator: a karaoke segment that is all
+                # that follows it holds the title ("Erasure - Song karaoke version")
+                if DASH_SEP_RE.search(name) and not DASH_SEP_RE.search(stripped):
+                    break
+                name = stripped
 
     # Strip karaoke-specific leading words like "Karaoké" before artist
     name = re.sub(r'^Karaok[eé]\s+', '', name, flags=re.IGNORECASE)
@@ -422,7 +437,8 @@ def _resolve_artist_title(left, right, artist_lookup):
     """Given two parts split by ' - ', figure out which is artist and which is title.
 
     An exact artist match is returned with the library's spelling ("Depeche mode"
-    -> "Depeche Mode"), so the file name matches the existing tracks.
+    -> "Depeche Mode"), so the file name matches the existing tracks, unless the
+    library itself spells that artist several ways.
     """
     # 1. Exact match: left is a known artist
     known = try_exact_artist_match(left, artist_lookup)
