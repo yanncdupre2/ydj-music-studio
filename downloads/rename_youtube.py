@@ -2,7 +2,8 @@
 """Rename YouTube-downloaded .mp4 files to a consistent format.
 
 Uses the Apple Music library artist list to disambiguate artist vs. title
-when YouTube titles are inconsistently ordered.
+when YouTube titles are inconsistently ordered ("Title - Artist" is swapped),
+and gives an exactly matched artist the library's spelling ("ERASURE" -> "Erasure").
 
 Output format:
     Artist - Title (Video).mp4          # for music videos
@@ -121,7 +122,9 @@ KARAOKE_NOISE_PATTERNS = [
     re.compile(r'\s*\[[^\]]*karaok[eé][^\]]*\]', re.IGNORECASE),
     re.compile(r'\s+[-–—|]\s*[^-–—|]*karaok[eé][^-–—|]*$', re.IGNORECASE),
     re.compile(r'\s+[-–—|]\s*[^-–—|]*karaok[eé][^-–—|]*(?=\s+[-–—|])', re.IGNORECASE),
-    re.compile(r'\s+karaok[eé](?:\s+\S+)*$', re.IGNORECASE),
+    # "karaoke" and the words after it, but only up to a " - " / " | " separator:
+    # in "Black Celebration karaoke - Depeche mode" the artist follows the dash
+    re.compile(r'\s+karaok[eé](?:\s+(?![-–—|]\s)\S+)*(?=\s+[-–—|]\s|$)', re.IGNORECASE),
     re.compile(r'\s+[-–—|]\s*' + KARAOKE_BRANDS + r'\b[^-–—|]*$', re.IGNORECASE),
     re.compile(r'\s+[-–—|]\s*' + KARAOKE_BRANDS + r'\b[^-–—|]*(?=\s+[-–—|])', re.IGNORECASE),
 ]
@@ -416,14 +419,20 @@ def classify_and_parse(stem, artist_lookup):
 
 
 def _resolve_artist_title(left, right, artist_lookup):
-    """Given two parts split by ' - ', figure out which is artist and which is title."""
+    """Given two parts split by ' - ', figure out which is artist and which is title.
+
+    An exact artist match is returned with the library's spelling ("Depeche mode"
+    -> "Depeche Mode"), so the file name matches the existing tracks.
+    """
     # 1. Exact match: left is a known artist
-    if try_exact_artist_match(left, artist_lookup):
-        return left, right
+    known = try_exact_artist_match(left, artist_lookup)
+    if known:
+        return known, right
 
     # 2. Exact match: right is a known artist (title-first format)
-    if try_exact_artist_match(right, artist_lookup):
-        return right, left
+    known = try_exact_artist_match(right, artist_lookup)
+    if known:
+        return known, left
 
     # 3. Substring match: find an artist in the left part
     found, remaining = find_artist_in_text(left, artist_lookup)
