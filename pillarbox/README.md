@@ -8,7 +8,7 @@ screen. Two tools:
 |---|---|
 | `scan.py` | Scans a playlist (default `MASTER LIST DJ VIDEO`) and reports every video whose picture doesn't fill the frame. Read-only. |
 | `widen.py` | Fixes one video: non-linear fill to 1920x1080, or crop to the real picture. Writes a new file; never touches the original. |
-| `apply.py` | Converts library videos **in place** with `widen.py`, keeping a `-backup` copy of each original next to it, and logs every conversion so it can be restored. |
+| `apply.py` | Converts library videos **in place** with `widen.py` (or, with `--delogo`, swaps in a checked `[delogo].mp4` from `delogo/delogo.py`), keeping a `-backup` copy of each original next to it, and logs every conversion so it can be restored. |
 
 Run both with the project venv (`venv/bin/python`): `scan.py` needs numpy,
 `widen.py` needs mutagen for tag copying.
@@ -86,6 +86,7 @@ venv/bin/python pillarbox/widen.py VIDEO --crop 1410:1080:256:0    # box from re
 
 ```bash
 venv/bin/python pillarbox/apply.py VIDEO [VIDEO ...]            # convert, keeping "<name>-backup.mp4"
+venv/bin/python pillarbox/apply.py --delogo VIDEO [VIDEO ...]   # swap in checked "[delogo].mp4" files instead
 venv/bin/python pillarbox/apply.py --restore VIDEO [VIDEO ...]  # undo
 venv/bin/python pillarbox/apply.py --trash-backups VIDEO [VIDEO ...]  # once checked: backups to the Trash
 ```
@@ -115,7 +116,18 @@ The mode comes from the video's scan category (current cache entry):
 | `pillarbox-4x3` | crop (no zoom, no stretch) |
 | `pillarbox-5x4` | fill with `--aspect 4:3` (shape corrected, 5% zoom, non-linear stretch) |
 
-Other categories need an explicit `--mode`. Every outcome is appended to
+Other categories need an explicit `--mode`.
+
+`--delogo` replaces the `widen.py` step: it takes the `<name> [delogo].mp4`
+that `delogo/delogo.py` rendered next to the video, then backs up, verifies,
+swaps and logs exactly as above (category `delogo`). It never renders one
+itself. Overlay detection can have false hits, so the file must be one you
+have watched. A video is skipped if its `[delogo].mp4` is missing, older than
+the video (which then changed after the render, e.g. a later pillarbox
+conversion), or a different picture size. One backup per video at a time: for
+a video that needs both fixes, finish one (`--trash-backups`) before the other.
+
+Every outcome is appended to
 `pillarbox/data/conversions.log` (tab-separated: time, status, category,
 original, backup, detail). `--restore` moves the converted file to the
 Trash and renames the backup back.

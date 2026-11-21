@@ -13,8 +13,14 @@ Mode per scan category (looked up in the scan cache; --mode overrides):
     pillarbox-4x3      crop   4:3 picture, no zoom, no stretch
     pillarbox-5x4      fill   squeezed PAL: shape corrected to 4:3, 5% zoom, non-linear fill
 
+--delogo swaps in the "<name> [delogo].mp4" that delogo/delogo.py rendered next to
+each video, instead of converting with widen.py. It never renders one itself:
+overlay detection can have false hits, so the file must have been watched first.
+It is skipped if missing, older than the video, or a different picture size.
+
 Usage:
     venv/bin/python pillarbox/apply.py VIDEO [VIDEO ...]
+    venv/bin/python pillarbox/apply.py --delogo VIDEO [VIDEO ...]   # swap in checked [delogo].mp4 files
     venv/bin/python pillarbox/apply.py --restore VIDEO [VIDEO ...]   # put the backups back
     venv/bin/python pillarbox/apply.py --trash-backups VIDEO [VIDEO ...]  # once checked: backups to the Trash
 """
@@ -134,19 +140,40 @@ def cached_category(path):
     return None
 
 
-def convert(path, mode_override):
-    category = cached_category(path) or "?"
-    mode_args = ["--mode", mode_override] if mode_override else MODES.get(category)
-    if mode_args is None:
-        print(f"SKIP  no conversion defined for category '{category}' (pass --mode): {path}")
-        return False
+def delogo_problem(path):
+    """Why the rendered "[delogo].mp4" next to path can't be swapped in, or None."""
+    rendered = path.with_name(f"{path.stem} [delogo].mp4")
+    if not rendered.exists():
+        return "no [delogo].mp4 next to it (render and watch one with delogo/delogo.py first)"
+    if rendered.stat().st_mtime < path.stat().st_mtime:
+        return "[delogo].mp4 is older than the video, which changed since (re-render it)"
+    a, b = streams(path)["video"], streams(rendered)["video"]
+    if (a["width"], a["height"]) != (b["width"], b["height"]):
+        return "[delogo].mp4 has a different picture size (re-render it)"
+    return None
+
+
+def convert(path, mode_override, delogo=False):
+    if delogo:
+        category = mode = "delogo"
+        problem = delogo_problem(path)
+        if problem:
+            print(f"SKIP  {problem}: {path}")
+            return False
+    else:
+        category = cached_category(path) or "?"
+        mode_args = ["--mode", mode_override] if mode_override else MODES.get(category)
+        if mode_args is None:
+            print(f"SKIP  no conversion defined for category '{category}' (pass --mode): {path}")
+            return False
+        mode = mode_args[1]
     backup = backup_path(path)
     if backup.exists():
         print(f"SKIP  backup already exists (converted before?): {path}")
         log("skipped", category, path, "backup exists")
         return False
 
-    print(f"\n=== {path.name}  [{category} -> {mode_args[1]}]")
+    print(f"\n=== {path.name}  [{category} -> {mode}]")
     # APFS clone: instant, and takes no extra space until the original is replaced
     if subprocess.run(["cp", "-c", "-p", str(path), str(backup)]).returncode != 0:
         shutil.copy2(path, backup)
@@ -154,11 +181,14 @@ def convert(path, mode_override):
         trash(backup)
         sys.exit(f"Backup copy is incomplete; stopped before touching {path}")
 
-    converted = path.with_name(f"{path.stem} [{mode_args[1]}].mp4")
-    if converted.exists():  # left over from an earlier failed attempt
-        trash(converted)
-    result = subprocess.run([sys.executable, str(HERE / "widen.py"), str(path), *mode_args])
-    problems = ["widen.py failed"] if result.returncode != 0 or not converted.exists() else verify(path, converted)
+    converted = path.with_name(f"{path.stem} [{mode}].mp4")
+    if delogo:  # already rendered and watched
+        problems = verify(path, converted)
+    else:
+        if converted.exists():  # left over from an earlier failed attempt
+            trash(converted)
+        result = subprocess.run([sys.executable, str(HERE / "widen.py"), str(path), *mode_args])
+        problems = ["widen.py failed"] if result.returncode != 0 or not converted.exists() else verify(path, converted)
     if problems:
         # the original was never touched; keep any converted file for inspection, drop the backup
         trash(backup)
@@ -168,7 +198,7 @@ def convert(path, mode_override):
 
     v = streams(converted)["video"]
     os.replace(converted, path)
-    detail = f"{mode_args[1]} -> {v['width']}x{v['height']}"
+    detail = f"{mode} -> {v['width']}x{v['height']}"
     log("converted", category, path, detail)
     print(f"OK    {detail}; original saved as {backup.name}")
     return True
@@ -204,11 +234,15 @@ def main():
     ap.add_argument("videos", nargs="+")
     ap.add_argument("--mode", choices=["crop", "fill"], help="override the per-category mode")
     action = ap.add_mutually_exclusive_group()
+    action.add_argument("--delogo", action="store_true", help="swap in each video's checked "
+                                                              "'[delogo].mp4' instead of running widen.py")
     action.add_argument("--restore", action="store_true", help="move each converted file to the Trash "
                                                                "and rename its backup back")
     action.add_argument("--trash-backups", action="store_true", help="once checked: move each video's "
                                                                      "-backup to the Trash")
     args = ap.parse_args()
+    if args.delogo and args.mode:
+        ap.error("--mode applies to widen.py conversions, not --delogo")
 
     paths = [Path(os.path.abspath(v)) for v in args.videos]
     for p in paths:
@@ -222,7 +256,7 @@ def main():
         done = sum(trash_backup(p) for p in paths)
         print(f"{done}/{len(paths)} backups moved to the Trash. Log: {LOG_PATH}")
         return
-    done = sum(convert(p, args.mode) for p in paths)
+    done = sum(convert(p, args.mode, args.delogo) for p in paths)
     print(f"\n{done}/{len(paths)} converted. Log: {LOG_PATH}")
 
 

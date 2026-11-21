@@ -36,6 +36,7 @@ to serve it:
 | **Downloads** | YouTube acquisition, renaming, and Apple-compatible conversion | `downloads/README.md` |
 | **Karaoke** | Video prep for Final Cut Pro overlay blending | `karaoke-processing/karaoke-process.md` |
 | **Pillarbox** | Find and fix DJ videos whose picture doesn't fill 16:9 (bars baked in, letterbox inside 4:3) | `pillarbox/README.md` |
+| **Delogo** | Erase fixed logos and credit text burned into DJ videos | `delogo/README.md` |
 | **Infra** | Shared Apple Music access, genre taxonomy, build environment, write safety | `common/README.md` |
 
 **Why this program has no terminal state.** Music keeps arriving. Every new
@@ -54,6 +55,7 @@ cannot.
 - YouTube acquisition via yt-dlp, renaming to `Artist - Title (type)`, and MKV→MP4 / Opus→AAC conversion
 - Karaoke video enhancement for FCP `screen`/`add` overlay blending, CLI plus a macOS GUI front-end
 - Video framing repair for `MASTER LIST DJ VIDEO`: detect baked-in bars, then crop or non-linearly fill to 16:9 in place, with audio, timing and DJ cue tags verified unchanged
+- Burned-in overlay removal for chosen DJ videos: detect fixed logos and credit text regardless of colour, erase them while on screen, and swap the watched result in place, with audio, timing and DJ cue tags verified unchanged (added 2026-11-20)
 - File renaming driven by metadata tags
 - Apple Music integration: bulk reads read-only; year and genre writes live and gated per track
 

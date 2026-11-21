@@ -13,6 +13,7 @@ paths, and integrations.
 - **Downloads:** complete — yt-dlp rename + MKV→MP4 / Opus→AAC conversion.
 - **Karaoke:** `karaoke-process` script + SwiftUI GUI mature and in use.
 - **Pillarbox:** `scan.py` / `widen.py` / `apply.py` shipped 2026-11-10. First pass converted 231 videos in place (95 near-16:9 `letterbox-in-4x3` cropped, 13 `pillarbox-5x4` shape-corrected and filled, 123 `pillarbox-4x3` cropped to 4:3); backups checked and discarded. Not yet treated: 103 `letterbox-in-4x3` not near 16:9, 82 `pillarbox-other`, 21 `soft-sides` (about half false positives), and the 4:3 `native-narrow` files.
+- **Delogo:** `delogo.py` shipped 2026-11-20. Validated on Erasure "Oh L'Amour (Ooh La La Extended Live Video)" (RobsonVJ logo + credit block, both found and erased), a synthetic orange-logo / translucent-cyan-text clip over sharp 1080p footage (exact spans, no false hits), and three clean videos. Known false hit: static scenes with flickering light (Metallica "One" 7:31). Writes `[delogo].mp4` next to the input; once watched, `pillarbox/apply.py --delogo` swaps it into the library in place (backup, verify, log). Opt-in per video, not a library sweep. No library video has been swapped yet.
 - **Infra:** shared `common/` utils, genre taxonomy, venv + Rust build in place. Open: Apple Music backup/restore workflow.
 
 ## Constraints and Conventions
@@ -101,7 +102,9 @@ ydj-music-studio/
 ├── pillarbox/                     # Find + fix videos with bars baked into the picture (see README)
 │   ├── scan.py                    # Playlist scan -> data/report.html + report.csv (cached, read-only)
 │   ├── widen.py                   # Non-linear 16:9 fill or crop-to-picture; copies audio + Serato/MIK tags
-│   └── apply.py                   # In-place library conversion: "-backup" copy, verify, swap; log in data/conversions.log
+│   └── apply.py                   # In-place library conversion: "-backup" copy, verify, swap; log in data/conversions.log (--delogo swaps in a checked [delogo].mp4)
+├── delogo/                        # Detect + erase fixed overlays (logos, credit text) burned into a video (see README)
+│   └── delogo.py                  # Colour-agnostic detection, removelogo fill while on screen; preview in data/previews/
 └── src/
     └── ydj_mixer_engine/          # Rust SA + Held-Karp engine
         ├── Cargo.toml             # pyo3 + rand deps

@@ -1,15 +1,16 @@
 # YDJ Music Studio
 
-A comprehensive DJ music production and library management system for organizing, tagging, and optimizing music collections. Combines intelligent playlist optimization (with a Rust SA + Held-Karp engine), automated metadata management for Apple Music libraries, YouTube media processing, and karaoke video preparation for FCP overlay blending.
+A comprehensive DJ music production and library management system for organizing, tagging, and optimizing music collections. Combines intelligent playlist optimization (with a Rust SA + Held-Karp engine), automated metadata management for Apple Music libraries, YouTube media processing, karaoke video preparation for FCP overlay blending, and repair of music videos (baked-in bars, burned-in logos).
 
 ## Overview
 
-YDJ Music Studio addresses four core workflows for DJs:
+YDJ Music Studio addresses five core workflows for DJs:
 
 1. **Playlist Optimization** — Harmonic mixing via Camelot wheel + BPM continuity. Rust engine combines simulated annealing with Held-Karp exact DP for n ≤ 20 (provably optimal, seconds at that size).
 2. **Library Management** — Live AppleScript reads/writes, LLM-powered genre tagging from a canonical 31-genre taxonomy, interactive duplicate/inconsistency resolution.
 3. **YouTube Media Processing** — yt-dlp downloads → rename to `Artist - Title (Video/Karaoke/Lyrics Video)` format using a live Apple Music artist list, MKV→MP4 conversion, Opus→AAC.
 4. **Karaoke Video Prep** — Luminance-LUT pipeline turning a karaoke YouTube video into a black/white/sung-color overlay layer for Final Cut Pro `screen`/`add` blending. Optional `--no-lut` mode preserves multi-color text on a black background. Intro/outro preserve-or-blackout, zoom in/out, inverted-band polarity, outline halo, background darken, and a SwiftUI front-end.
+5. **Video Repair** — `pillarbox/` finds videos whose picture doesn't fill 16:9 and crops or non-linearly fills them; `delogo/` finds fixed logos and credit text burned into a video and erases them while they are on screen. Both swap results into the library in place, with a backup and audio/tags verified unchanged.
 
 ## Key Features
 
@@ -47,6 +48,12 @@ YDJ Music Studio addresses four core workflows for DJs:
 - `--sung-color HEX` — customize the sung-text color (default green `00C800`)
 - Still-frame mode (`-f SECONDS`) for fast threshold/mask tuning
 - SwiftUI GUI front-end (`KaraokeProcessGUI.app`) with live previews, persisted presets, foreground progress bar, and Finder Quick Action wrapper
+
+### Video Repair (`pillarbox/`, `delogo/`)
+- `pillarbox/scan.py` reports every video in `MASTER LIST DJ VIDEO` with bars baked into the picture (cached; HTML report with thumbnails)
+- `pillarbox/widen.py` fills 16:9 with a non-linear stretch, or crops to the real picture; 5:4 PAL pictures are shape-corrected
+- `delogo/delogo.py` detects fixed overlays whatever their colour (edges that hold still while the picture changes), tracks when each is on screen, and erases it with ffmpeg `removelogo`; a preview image shows each mask and result
+- `pillarbox/apply.py` swaps results into the library in place: `-backup` copy, verification (same frames, bit-identical audio, identical tags incl. Serato / Mixed In Key cues), log, `--restore`, `--trash-backups`. `--delogo` swaps in a `[delogo].mp4` you have watched; it never renders one unreviewed
 
 ## Quick Start
 
@@ -99,6 +106,21 @@ karaoke-process "/path/to/karaoke.mp4" --bg-color 4742B8 --bg-strength 95   # Ka
 
 See `karaoke-processing/karaoke-process.md` for the full reference (channel-specific starting points, tuning workflow, all options).
 
+### Video Repair
+```bash
+venv/bin/python pillarbox/scan.py                        # report videos with baked-in bars -> pillarbox/data/report.html
+venv/bin/python pillarbox/apply.py VIDEO                 # crop/fill in place, keeping "<name>-backup.mp4"
+
+venv/bin/python delogo/delogo.py VIDEO --detect-only     # list fixed overlays + preview image (seconds)
+venv/bin/python delogo/delogo.py VIDEO                   # render "VIDEO [delogo].mp4" next to it; watch it
+venv/bin/python pillarbox/apply.py --delogo VIDEO        # swap the watched [delogo].mp4 in place
+
+venv/bin/python pillarbox/apply.py --restore VIDEO       # undo either
+venv/bin/python pillarbox/apply.py --trash-backups VIDEO # once happy: backups to the Trash
+```
+
+See `pillarbox/README.md` and `delogo/README.md` for how detection works and its limits.
+
 ## Project Structure
 
 ```
@@ -108,6 +130,8 @@ ydj-music-studio/
 ├── library-management/  # Tagging, cleanup, inconsistency resolver
 ├── downloads/           # YouTube media processing (rename, MKV/Opus conversion)
 ├── karaoke-processing/  # karaoke-process script + SwiftUI GUI + reference doc
+├── pillarbox/           # Find + fix videos with bars baked in; in-place apply with backup
+├── delogo/              # Find + erase fixed logos / credit text burned into a video
 └── src/ydj_mixer_engine/# Rust SA + Held-Karp engine (PyO3/maturin)
 ```
 
@@ -119,7 +143,7 @@ Each subfolder contains its own `CLAUDE.md` for focused AI agent context and dom
 - **[PROJECT-LOCAL-CONTEXT.md](PROJECT-LOCAL-CONTEXT.md)** - Current operating knowledge: constraints, commands, paths, integrations
 - **[SESSION-LOG.md](SESSION-LOG.md)** - Session history (older entries in [ARCHIVE/SESSION-LOG.md](ARCHIVE/SESSION-LOG.md))
 - **[TODO.md](TODO.md)** - Canonical tasks and current next actions
-- **Subfolder READMEs** - Domain-specific documentation for mixer, library-management, downloads
+- **Subfolder READMEs** - Domain-specific documentation for mixer, library-management, downloads, pillarbox, delogo
 
 ## Status by Area
 
@@ -127,6 +151,8 @@ Each subfolder contains its own `CLAUDE.md` for focused AI agent context and dom
 - **Library** — 4-source genre/year tagging, inconsistency resolver, live AppleScript year+genre writes (in production). Open: audit + fill missing BPM/key.
 - **Downloads** — complete: yt-dlp rename to `Artist - Title (type)` + MKV→MP4 / Opus→AAC conversion.
 - **Karaoke** — `karaoke-process` script (`~/.local/bin/karaoke-process`) + SwiftUI GUI (`/Applications/KaraokeProcessGUI.app`), mature and in use.
+- **Pillarbox** — scan, widen and in-place apply shipped; 231 videos converted in place. Open: categories not yet treated (see `PROJECT-LOCAL-CONTEXT.md`).
+- **Delogo** — detection, erase and in-place swap (`apply.py --delogo`) shipped 2026-11-20; used per chosen video. Known false hit: static scenes with flickering light.
 - **Infra** — shared `common/` utilities, genre taxonomy, venv + Rust build. Open: Apple Music backup/restore workflow.
 
 See [PLANNING.md](PLANNING.md) for the design breakdown and [PROJECT-LOCAL-CONTEXT.md](PROJECT-LOCAL-CONTEXT.md) for current state.
@@ -135,7 +161,7 @@ See [PLANNING.md](PLANNING.md) for the design breakdown and [PROJECT-LOCAL-CONTE
 
 - **Python 3.x** — pandas, numpy, mutagen, fuzzywuzzy
 - **Rust + PyO3 + maturin** — mixer SA + Held-Karp optimizer (`src/ydj_mixer_engine/`)
-- **Bash + ffmpeg** — media processing (downloads, karaoke-process)
+- **Bash + ffmpeg** — media processing (downloads, karaoke-process); ffmpeg driven from Python for video repair (pillarbox, delogo)
 - **AppleScript** — live Apple Music reads + writes (year, genre, playlists)
 - **MusicBrainz API** — release dates and genre lookups for missing metadata
 
