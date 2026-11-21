@@ -112,9 +112,8 @@ front-end with live previews and persisted presets. Mature and in use.
 
 ### Infra — shared utilities and safety
 Shared Apple Music access (`common/`), the genre taxonomy, the Python venv and
-Rust build, and library-write safety.
-**Open:** a documented, tested Apple Music backup/restore workflow before
-further bulk writes.
+Rust build, and library-write safety. Library backup/restore shipped 2026-11-21
+(`common/library_backup.py`, see Architecture Decisions).
 
 ## Architecture Decisions in Force
 
@@ -164,9 +163,29 @@ Four other scripts in `library-management/` write to the live library
 (`batch_update_no_copyright.py`, `update_year.py`, and two `test_update_hymn*`
 scripts), each gated by a single run-level `input()` confirmation rather than
 per track. None is part of the documented workflow, but all can write to the
-production library, and they are precisely the kind of bulk operation the
-outstanding backup/restore condition exists to cover. A fifth,
+production library, and they are precisely the kind of bulk operation that
+should be preceded by a `common/library_backup.py backup`. A fifth,
 `interactive_tagger.py`, is dead code and is carried by an [infra] task.
+
+### Library backup: copy what is saved, restore through Choose Library
+The library database is held by a background process, AMPLibraryAgent, not by
+Music.app (measured 2026-11-21). The agent outlives Music, keeps the library in
+memory and saves to the package on disk only now and then. It cannot be
+controlled from a script: launchctl refuses to signal it, and SIGTERM sometimes
+makes it exit without saving (an unsaved test playlist was lost) and sometimes
+is ignored for minutes. Replacing the package's files while it runs does not
+work either: the first restore test was overwritten seconds later.
+
+So `common/library_backup.py` never stops the agent and never replaces files
+under it. A backup is an APFS clone of the package as last saved, accepted only
+if the files are identical before and after the copy, with a manifest of
+SHA-256 hashes and the save time (which is what the backup contains). A restore
+clones the backup next to the library under a new name and the user switches to
+it with Music's Option-launch Choose Library, which makes the agent load it; the
+current library stays untouched, so switching back is the undo. Tested end to
+end on 2026-11-21: a playlist created after the backup was absent in the
+restored library and present again after switching back. File-swap and
+agent-signalling restores were both rejected on that evidence.
 
 ### Track identification: artist + name, with database ID as fallback
 Database IDs are captured at research time and can go stale before the write —
@@ -224,7 +243,7 @@ and keeps agent context scoped to the area being worked on.
 - **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy. ***Met as of 2026-09-19***, first measurement: across the 8,612 DJ tracks read, **0 missing year, 0 missing genre (0.00%)**. BPM is absent on 15 tracks (0.17%) and a Camelot key is absent from Comments on 17 (0.20%, detected by a `\d{1,2}[AB]` pattern, so approximate). Taxonomy: 29 genre strings in use, 2 of them off-taxonomy — `Special` (2 tracks, deliberately retained) and `Alternative` (1 track, blocked; see Open Questions).*
 - **Downloads:** files land in Apple-compatible formats with consistent `Artist - Title (type)` names. *Satisfied and stable since 2026-04-28. Qualitative, with no automated check.*
 - **Karaoke:** overlays render predictably for FCP `screen`/`add` blending across the channels in use. *Satisfied and stable since 2026-05-09. Qualitative, validated by eye per channel.*
-- **Infra:** no data-loss incidents from library writes; backup/restore documented and tested; **no script, command or skill in this program deletes a library track**. *No incidents to date, and the no-deletion property holds as of 2026-09-19. Backup/restore is unmet and carried by an [infra] task; it gates further bulk writes. The no-deletion condition is what makes `--dry-run` sufficient in place of an isolated test library — if it is ever broken, that decision must be revisited.*
+- **Infra:** no data-loss incidents from library writes; backup/restore documented and tested; **no script, command or skill in this program deletes a library track**. *No incidents to date, and the no-deletion property holds as of 2026-09-19. Backup/restore **met 2026-11-21**: `common/library_backup.py`, restore tested end to end through Music's Choose Library switch; a bulk write takes a fresh backup first. The no-deletion condition is what makes `--dry-run` sufficient in place of an isolated test library — if it is ever broken, that decision must be revisited.*
 
 ## Inflow
 
@@ -257,8 +276,10 @@ and keeps agent context scoped to the area being worked on.
 ### Risks
 1. **Apple Music library corruption** — Impact: high; the library holds 20,330
    tracks, 8,622 of them in the DJ playlists. Bulk reads stay read-only and every live write is gated per track.
-   A documented, tested backup/restore workflow is still outstanding and gates
-   further bulk writes.
+   Mitigated since 2026-11-21 by a tested backup/restore (`common/library_backup.py`).
+   Residual: a backup holds the library as last saved by AMPLibraryAgent, so
+   changes not yet saved are not in it, and with iCloud Sync Library on, Music
+   may re-apply cloud changes after switching to an older library.
 2. **Genre taxonomy drift** — New genres accumulate inconsistently over time.
    LLM tagging enforces the canonical 31-genre list; periodic audits catch drift.
 3. **AppleScript field coverage** — Year and genre writes are proven in

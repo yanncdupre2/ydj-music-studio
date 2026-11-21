@@ -5,6 +5,7 @@ Shared utilities and resources used across mixer, library-management, and downlo
 ## Files
 
 - **`apple_music.py`** - Apple Music library XML parser
+- **`library_backup.py`** - Back up / restore the Apple Music library database (see below)
 - **`genres.json`** - Canonical 31-genre taxonomy
 - **`metadata_utils.py`** - *(Future)* Common metadata operations
 
@@ -122,9 +123,37 @@ Planned `metadata_utils.py` for shared operations:
 - **plistlib** - Built-in Python XML parser for Apple Music format
 - **unicodedata** - Accent removal and text normalization
 
+## Library Backup (`library_backup.py`)
+
+Take one before any script writes to the library in bulk:
+
+```bash
+venv/bin/python common/library_backup.py backup --note "before artist cleanup"
+venv/bin/python common/library_backup.py list
+venv/bin/python common/library_backup.py restore NAME   # then: quit Music, Option-launch it,
+                                                        # Choose Library, pick the prepared package
+venv/bin/python common/library_backup.py check          # which library Music uses now
+```
+
+- **Backup** clones `Music Library.musiclibrary` (~0.5 GB; APFS clones cost no
+  space until the library changes) into `~/Music/Music/YDJ Library Backups/<date time>/`,
+  without quitting Music. It is kept only if the library's files are identical before
+  and after the copy; `manifest.json` holds every file's SHA-256 and when the library
+  was last saved, which is what the backup contains.
+- **Restore** checks the backup against its manifest and clones it next to the
+  library as `Music Library [restored NAME].musiclibrary`. You switch Music to it
+  with Option-launch → Choose Library. The current library is never touched, so
+  switching back is the undo.
+- **Why not simply copy files back:** the library is held by a background process,
+  AMPLibraryAgent, which outlives Music, saves only now and then, and writes its copy
+  back over replaced files. It can't be stopped safely from a script (SIGTERM can
+  lose unsaved changes). Details in `PLANNING.md`, "Library backup".
+- Not covered: media files (outside the package). With iCloud Sync Library on, Music
+  may re-apply cloud changes after switching to an older library.
+
 ## Safety Notes
 
-- **Read-only operations** - This module only reads Apple Music XML export
-- **No write operations** - Cannot modify Apple Music library (by design, for safety)
-- **Manual export required** - User must export XML manually from Apple Music
-- Future AppleScript integration (Phase 4) will enable direct library access
+- **`apple_music.py` / `load_from_music_app.py`** read the library (XML export or
+  live AppleScript). Year/genre writes live in the library-management taggers, which
+  gate every write with a keypress.
+- **Back up first** with `library_backup.py` before any bulk write.

@@ -14,13 +14,13 @@ paths, and integrations.
 - **Karaoke:** `karaoke-process` script + SwiftUI GUI mature and in use.
 - **Pillarbox:** `scan.py` / `widen.py` / `apply.py` shipped 2026-11-10. First pass converted 231 videos in place (95 near-16:9 `letterbox-in-4x3` cropped, 13 `pillarbox-5x4` shape-corrected and filled, 123 `pillarbox-4x3` cropped to 4:3); backups checked and discarded. Not yet treated: 103 `letterbox-in-4x3` not near 16:9, 82 `pillarbox-other`, 21 `soft-sides` (about half false positives), and the 4:3 `native-narrow` files.
 - **Delogo:** `delogo.py` shipped 2026-11-20. Validated on Erasure "Oh L'Amour (Ooh La La Extended Live Video)" (RobsonVJ logo + credit block, both found and erased), a synthetic orange-logo / translucent-cyan-text clip over sharp 1080p footage (exact spans, no false hits), and three clean videos. Known false hit: static scenes with flickering light (Metallica "One" 7:31). Writes `[delogo].mp4` next to the input; once watched, `pillarbox/apply.py --delogo` swaps it into the library in place (backup, verify, log). Opt-in per video, not a library sweep. No library video has been swapped yet.
-- **Infra:** shared `common/` utils, genre taxonomy, venv + Rust build in place. Open: Apple Music backup/restore workflow.
+- **Infra:** shared `common/` utils, genre taxonomy, venv + Rust build in place. Library backup/restore (`common/library_backup.py`) shipped and tested 2026-11-21.
 
 ## Constraints and Conventions
 
 ### Safety Constraints
 - **AppleScript writes are live**: Year and genre updates go directly to Apple Music via AppleScript
-- **Always backup before bulk operations**: Apple Music library contains 20,330 tracks (8,622 in the DJ playlists)
+- **Always backup before bulk operations**: `venv/bin/python common/library_backup.py backup --note "before X"`. Apple Music library contains 20,330 tracks (8,622 in the DJ playlists)
 - **Interactive confirmation**: Tagger requires manual keypress (1/2/S) per track — no unattended bulk writes
 
 ### Genre Taxonomy Rules
@@ -163,6 +163,31 @@ pip install -r requirements.txt
 - mutagen (audio file metadata)
 - fuzzywuzzy (fuzzy string matching)
 - python-Levenshtein (fuzzywuzzy speedup)
+
+### Library backup and AMPLibraryAgent
+```bash
+venv/bin/python common/library_backup.py backup --note "before X"   # verified clone, Music can stay open
+venv/bin/python common/library_backup.py list
+venv/bin/python common/library_backup.py restore NAME   # prepares "Music Library [restored NAME].musiclibrary"
+venv/bin/python common/library_backup.py check          # which library Music uses now
+```
+Library: `~/Music/Music/Music Library.musiclibrary` (~0.5 GB; read from
+`defaults read com.apple.Music library-url`). Backups: `~/Music/Music/YDJ Library
+Backups/<date time>/` with `manifest.json`. Music's own update-time copies are in
+`~/Music/Music/Previous Libraries.localized/`.
+
+The database is held by **AMPLibraryAgent**, which outlives Music and saves to
+disk only now and then (usually right after Music launches). Quitting Music does
+not save. **Never signal the agent**: `launchctl kill` is refused, and a plain
+SIGTERM can make it exit without saving (lost an unsaved playlist in testing) or
+be ignored. Never replace the package's files while it runs; it writes its copy
+back over them. Restore = Option-launch Music → Choose Library → pick the
+prepared package; the original stays untouched, so switching back is the undo.
+
+**Keep Music Media folder organized is ON** (confirmed 2026-11-21): editing a
+track's artist or album makes Music move or rename its file on disk. Any
+artist-name write must expect file paths to change (Serato crates, pillarbox
+conversions.log paths).
 
 ### Subscription (Apple Music) tracks are not writable
 A track with `cloud status = subscription` (a `.m4p` from an Apple Music

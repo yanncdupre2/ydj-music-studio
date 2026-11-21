@@ -74,6 +74,13 @@ pip install -r requirements.txt
 1. Open Apple Music → File → Library → Export Library
 2. Save as `~/YDJ Library.xml`
 
+### Back Up the Apple Music Library (before any bulk write)
+```bash
+venv/bin/python common/library_backup.py backup --note "before X"  # verified clone; Music can stay open
+venv/bin/python common/library_backup.py list
+venv/bin/python common/library_backup.py restore NAME              # then Option-launch Music → Choose Library
+```
+
 ### Run Mixer
 ```bash
 ./run-mixer.sh                  # uses Rust engine (built once via maturin) with Python fallback
@@ -153,7 +160,7 @@ Each subfolder contains its own `CLAUDE.md` for focused AI agent context and dom
 - **Karaoke** — `karaoke-process` script (`~/.local/bin/karaoke-process`) + SwiftUI GUI (`/Applications/KaraokeProcessGUI.app`), mature and in use.
 - **Pillarbox** — scan, widen and in-place apply shipped; 231 videos converted in place. Open: categories not yet treated (see `PROJECT-LOCAL-CONTEXT.md`).
 - **Delogo** — detection, erase and in-place swap (`apply.py --delogo`) shipped 2026-11-20; used per chosen video. Known false hit: static scenes with flickering light.
-- **Infra** — shared `common/` utilities, genre taxonomy, venv + Rust build. Open: Apple Music backup/restore workflow.
+- **Infra** — shared `common/` utilities, genre taxonomy, venv + Rust build, tested library backup/restore (`common/library_backup.py`).
 
 See [PLANNING.md](PLANNING.md) for the design breakdown and [PROJECT-LOCAL-CONTEXT.md](PROJECT-LOCAL-CONTEXT.md) for current state.
 
