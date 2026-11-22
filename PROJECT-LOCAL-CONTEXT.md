@@ -302,6 +302,14 @@ python3 downloads/rename_youtube.py --apply  # actually rename
 ```
 
 ### Media Processing (ffmpeg)
+ffmpeg is the Apple-silicon Homebrew build, `/opt/homebrew/bin/ffmpeg` (8.1.1 as
+of 2026-11-22). The Automator workflows call it by absolute path because
+Automator's PATH has no Homebrew; the GUI prepends `/opt/homebrew/bin` to PATH.
+The Intel Homebrew in `/usr/local` (ffmpeg 4.3.1, runs under Rosetta) is being
+removed, so nothing here may reference `/usr/local`. This build has no
+`drawtext`, `subtitles` or `ass` filters (no freetype or libass); nothing in this
+repo uses them.
+
 ```bash
 # Install ffmpeg via Homebrew (if not already installed)
 brew install ffmpeg

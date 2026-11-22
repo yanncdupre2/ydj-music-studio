@@ -134,7 +134,7 @@ enum ShellRunner {
 
     static func enrichedEnvironment() -> [String: String] {
         var env = ProcessInfo.processInfo.environment
-        let extras = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
+        let extras = ["/opt/homebrew/bin", "/usr/bin", "/bin"]
         let cur = env["PATH"] ?? ""
         let merged = (extras + (cur.isEmpty ? [] : [cur])).joined(separator: ":")
         env["PATH"] = merged
