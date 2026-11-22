@@ -37,6 +37,10 @@ or edit tasks through the close request's `task_changes`, never by hand.
 
 - [ ] Fill in the artist on the 247 tracks that have none [library] <!-- gtd-task: 3a0bc72c-f53b-4a1d-aa62-46e41f69b3ac -->
 
+- [ ] Legacy Party Tyme and Sing King workflows: retire them, or fix their known problems: a temp file left in ~/Documents, no -y on the last Party Tyme step, duration cut to whole seconds, hardcoded 1920x1080, an ffmpeg check that does not stop the run, and audio re-encoded instead of copied [karaoke] <!-- gtd-task: 95d62b6e-e66d-4708-b1c5-17410041b12b -->
+
+- [ ] GUI build.sh: move the old app bundle to the Trash instead of rm -rf, and make the install step work when /Applications already has the app [karaoke] <!-- gtd-task: bdc59d55-06ca-4459-b8f4-6454b5962731 -->
+
 ## Done
 
 _(empty — checked-off items live here briefly until the next session close drains them into `SESSION-LOG.md`)_
