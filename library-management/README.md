@@ -52,8 +52,19 @@ venv/bin/python library-management/artist_spellings.py undo       # put the old 
 - **undo** restores journaled values newest first.
 
 First run (2026-11-21): 81 artists decided, 714 tracks changed, 89 files moved
-(13 artists, all accent changes), 23 tracks refused by Music with "File
-permission error (-54)" and left unchanged, 1 subscription track to fix by hand.
+(13 artists, all accent changes), 1 subscription track to fix by hand. Björk
+was switched from "Bjork" to "Björk" on 2026-11-22 (15 files moved).
+
+Music refused 23 tracks with "File permission error (-54)". All are cloud-only
+entries (class `shared track`, cloud status `unknown`) that duplicate a local
+file by the same artist, which was fixed (22 of 23 the same length to 0.1 s).
+Music also refuses to download them by script ("Parameter error (-50)"). They
+are left as they are; the library has 155 such entries in all.
+
+VirtualDJ observation (2026-11-21): when VirtualDJ first saw two moved Björk
+videos, their new entries already had cue points (8 and 1). Most likely
+VirtualDJ read them from the cue tags Mixed In Key writes into the files (not
+checked), so a move may cost fewer cues than feared.
 
 Consent is per artist (one keypress in review settles all its tracks), not per
 track as in the taggers; the backup and journal are the safety net (see
