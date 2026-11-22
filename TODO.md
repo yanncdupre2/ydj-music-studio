@@ -11,9 +11,9 @@ or edit tasks through the close request's `task_changes`, never by hand.
 
 - [ ] Measure inflow cadence from Apple Music Date Added and re-base the dormancy horizon in PLANNING Inflow [infra] <!-- gtd-task: cb9449a9-af1a-4ef8-8250-896c65b13121 -->
 
-## Next
+- [ ] In Music, by hand: delete the tracks in playlist "Cloud duplicates to delete" (Option-Delete) and then the playlist; delete the 3 "YDJ restore test" playlists; set artist "Mylène Farmer" on subscription track "XXL (Blue Stahli Remix)" [library] <!-- gtd-task: 0c6e0c18-2faf-47e0-9709-aff440afc63d; outside-session: true -->
 
-- [ ] Document and test an Apple Music backup/restore workflow before further bulk writes [infra] <!-- gtd-task: 2122c921-ddd8-467d-9fff-fa9b1193096f -->
+## Next
 
 - [ ] Spike: verify AppleScript write support for BPM and Comments (blocks BPM and Camelot-key tagging) [library] <!-- gtd-task: df2b12ee-7a91-45f5-88ad-584eb8d46fc7 -->
 
@@ -34,6 +34,8 @@ or edit tasks through the close request's `task_changes`, never by hand.
 - [ ] Remove dead interactive_tagger.py and decide cleanup.py's XML-export dependency [infra] <!-- gtd-task: a853beaa-e632-4c39-9bdd-2d648c387224 -->
 
 - [ ] Decide treatment for the remaining pillarbox candidates: 103 letterbox-in-4x3 not near 16:9, 82 pillarbox-other, 21 soft-sides, and the 4:3 native-narrow files (see pillarbox/data/report.html) [pillarbox] <!-- gtd-task: efab578d-7681-4d88-ab34-d56a96c92c81 -->
+
+- [ ] Fill in the artist on the 247 tracks that have none [library] <!-- gtd-task: 3a0bc72c-f53b-4a1d-aa62-46e41f69b3ac -->
 
 ## Done
 

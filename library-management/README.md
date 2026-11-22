@@ -58,8 +58,17 @@ was switched from "Bjork" to "Björk" on 2026-11-22 (15 files moved).
 Music refused 23 tracks with "File permission error (-54)". All are cloud-only
 entries (class `shared track`, cloud status `unknown`) that duplicate a local
 file by the same artist, which was fixed (22 of 23 the same length to 0.1 s).
-Music also refuses to download them by script ("Parameter error (-50)"). They
-are left as they are; the library has 155 such entries in all.
+Music also refuses to download them by script ("Parameter error (-50)").
+
+Cloud-only duplicates (2026-11-22): of 711 cloud-only tracks, 151 duplicate a
+downloaded track (same artist and title by group key, same length within 1 s,
+file on disk). Before deletion, the downloaded copy was added to the ordinary
+playlists only its cloud copy was in (22 additions, appended at the end) and
+given the cloud copy's higher stars (7 tracks); log with old values in
+`data/cloud_duplicates_fixes.jsonl`. The 151 are collected in the Music
+playlist "Cloud duplicates to delete" for deletion by hand (the scripts never
+delete tracks). 22 more share a title but differ in length, so they are
+probably other versions and were left alone.
 
 VirtualDJ observation (2026-11-21): when VirtualDJ first saw two moved Björk
 videos, their new entries already had cue points (8 and 1). Most likely
