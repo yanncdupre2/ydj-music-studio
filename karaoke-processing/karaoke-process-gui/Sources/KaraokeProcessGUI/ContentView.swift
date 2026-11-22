@@ -218,7 +218,7 @@ struct ContentView: View {
                 .font(.system(size: 56))
                 .foregroundColor(.secondary)
             Text("Open a video file").font(.title2)
-            Text("Right-click a movie in Finder → Quick Actions → Karaoke Process v2")
+            Text("Right-click a movie in Finder → Quick Actions → Karaoke Process")
                 .foregroundColor(.secondary).font(.callout)
             Button("Open File…", action: openFile)
         }

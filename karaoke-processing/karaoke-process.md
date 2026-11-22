@@ -397,18 +397,19 @@ A SwiftUI macOS app that wraps `karaoke-process` with a live-preview UI, persist
 - **Intro / outro auto-capture** — Intro and Outro are independent toggles. Each, when enabled, snaps its duration field to a sensible default from the current playhead: Intro captures `currentSeconds`, Outro captures `duration − currentSeconds`. A horizontal **Preserve | Blackout** radio group inside each section drives `--{intro,outro}-{preserve,blackout}`.
 - **Persisted presets** at `~/Library/Application Support/KaraokeProcessGUI/presets.json` (pretty-printed, sorted-keys); seeded with `Sing King` and `Musisi` on first launch. "Save current as preset…" picks up a new name (with overwrite confirmation if it exists). Intro and outro params are intentionally NOT included in saved presets — they're always per-file.
 - **Foreground processing with progress bar** — parses ffmpeg's `time=HH:MM:SS.ss` stderr lines vs. the asset's loaded duration. Cancel button kills the child cleanly; window-close also cancels. Done state shows "Reveal in Finder".
-- **Quick Action wrapper** — `karaoke-processing/Karaoke Process.workflow/` is a single-Run-Shell-Script Automator service that does `open -a /Applications/KaraokeProcessGUI.app "$f"`. Drop it in `~/Library/Services/`.
+- **Quick Action wrapper** — the "Karaoke Process" Finder Quick Action is a single-Run-Shell-Script Automator service that does `open -a /Applications/KaraokeProcessGUI.app "$f"`. Its source lives in the automator-workflows repo (`~/Projects/automator-workflows/workflows/Karaoke Process.workflow`), not here; the copy this repo used to carry was retired 2026-11-22 because it had fallen behind the installed one.
 
 ### Build
 
 ```bash
 cd karaoke-processing/karaoke-process-gui
 ./build.sh                                  # produces KaraokeProcessGUI.app, ad-hoc signed
-mv KaraokeProcessGUI.app /Applications/
-cp -R "../Karaoke Process.workflow" ~/Library/Services/
+mv KaraokeProcessGUI.app /Applications/     # move the old app to ~/.Trash first
 ```
 
-Then right-click any video in Finder → Quick Actions → **Karaoke Process**.
+The Quick Action is already installed in `~/Library/Services/`. Reinstalling it
+is a manual copy from automator-workflows (see that repo). Then right-click any
+video in Finder → Quick Actions → **Karaoke Process**.
 
 ### Layout
 
