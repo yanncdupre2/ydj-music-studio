@@ -90,10 +90,11 @@ lives in each area's reference, linked in the Objective table above.
 A canonical 31-genre compound taxonomy, 4-source consensus genre/year tagging,
 and interactive inconsistency resolution. Live AppleScript reads and writes for
 year and genre, in production use.
-**Open:** 15 DJ tracks lack BPM and 17 lack a Camelot key (measured 2026-09-19).
-At that size this is a hand-correction in Music.app, not a tooling problem — the
-missing AppleScript BPM/Comments write path only matters if the fill is
-automated. See Open Questions.
+BPM and Camelot key come from Mixed In Key (see Architecture Decisions).
+**Open (measured 2026-11-24):** 43 DJ tracks lack BPM and 49 lack a key the
+mixer can read, 53 tracks in all; 39 of them were never run through Mixed In
+Key, and 26 arrived in October 2026 or later. The fix is an MIK pass over
+new arrivals, not new tooling.
 
 ### Mixer — playlist optimization
 Harmonic mixing and BPM continuity solved as a track-ordering optimization over
@@ -167,6 +168,17 @@ per track. None is part of the documented workflow, but all can write to the
 production library, and they are precisely the kind of bulk operation that
 should be preceded by a `common/library_backup.py backup`. A fifth,
 `interactive_tagger.py`, is dead code and is carried by an [infra] task.
+
+### BPM and Camelot key come from Mixed In Key, not from this repo
+Every keyed DJ track carries Mixed In Key's comment form `07A - Energy 7`
+(8,573 of 8,573 measured 2026-11-24), and the mixer reads the key from the
+first word of Comments (`mixer/camelot.py` `extract_key_from_comments`).
+A track with no BPM or no readable key is dropped from the mix with a
+warning, not an error. Building BPM detection, key detection or an
+AppleScript BPM/Comments write path in this repo would duplicate what Mixed
+In Key already does, so all three were retired on 2026-11-24. The cost is a
+manual step: new arrivals must be run through Mixed In Key, and the
+2026-11-24 audit found 53 DJ tracks that had not been.
 
 ### Artist spelling cleanup: consent per artist, backed by backup and journal
 `library-management/artist_spellings.py` writes Artist / Album Artist. Unlike the
@@ -266,7 +278,7 @@ and keeps agent context scoped to the area being worked on.
 ## Standing Conditions
 
 - **Mixer:** optimizes directly from an Apple Music playlist chosen per run (not a hardcoded name) and writes the result back as a new playlist; exact optimum for n ≤ 20. *Partially met: write-back and exact n ≤ 20 ship; the input playlist name is still the literal "Mixer input" at `mixer/mixer.py:221`. Carried by a [mixer] task.*
-- **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy. ***Met as of 2026-09-19***, first measurement: across the 8,612 DJ tracks read, **0 missing year, 0 missing genre (0.00%)**. BPM is absent on 15 tracks (0.17%) and a Camelot key is absent from Comments on 17 (0.20%, detected by a `\d{1,2}[AB]` pattern, so approximate). Taxonomy: 29 genre strings in use, 2 of them off-taxonomy — `Special` (2 tracks, deliberately retained) and `Alternative` (1 track, blocked; see Open Questions).*
+- **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy. *Year/genre and taxonomy **met as of 2026-11-24**: across the 8,622 DJ tracks, **0 missing year, 0 missing genre (0.00%)**; 30 genre strings in use, 2 of them off-taxonomy — `Special` (2 tracks, deliberately retained) and `Alternative` (1 track, blocked; see Open Questions). BPM/key **not met**: BPM is absent on 43 tracks (0.50%) and 49 (0.57%) have no key the mixer can read (first word of Comments a valid Camelot key; 45 by the older anywhere-in-Comments pattern). Up from 15 and 17 on 2026-09-19 because recent arrivals skipped Mixed In Key; carried by a [library] task.*
 - **Downloads:** files land in Apple-compatible formats with consistent `Artist - Title (type)` names. *Satisfied and stable since 2026-04-28. Qualitative, with no automated check.*
 - **Karaoke:** overlays render predictably for FCP `screen`/`add` blending across the channels in use. *Satisfied and stable since 2026-05-09. Qualitative, validated by eye per channel.*
 - **Infra:** no data-loss incidents from library writes; backup/restore documented and tested; **no script, command or skill in this program deletes a library track**. *No incidents to date, and the no-deletion property holds as of 2026-09-19. Backup/restore **met 2026-11-21**: `common/library_backup.py`, restore tested end to end through Music's Choose Library switch; a bulk write takes a fresh backup first. The no-deletion condition is what makes `--dry-run` sufficient in place of an isolated test library — if it is ever broken, that decision must be revisited.*
@@ -277,20 +289,18 @@ and keeps agent context scoped to the area being worked on.
   categorization — genre, release year, BPM or Camelot key. Re-running the
   tagger over already-categorized tracks is this program's own work and is
   **not** inflow.
-- **Observed cadence:** roughly monthly in normal operation, stated by the
-  owner on 2026-10-03, with multi-month lulls when attention goes elsewhere.
-  Still not measured. `load_library()` reads `~/YDJ Library.xml`, which no
-  longer exists, and `~/Music/iTunes/iTunes Library.xml` is the abandoned
-  pre-Music.app library, frozen at 2020-02-07. The live library does yield
-  `Date Added` through the iTunesLibrary framework (`ITLibMediaItem.addedDate`,
-  the same API `common/playlist_paths.swift` uses), confirmed 2026-11-11 by a
-  full-library dump. The earlier "roughly quarterly" basis was an assumption
-  and understated the normal rate.
-- **Dormancy horizon:** 12 months — twelve times the monthly cadence above,
-  and well beyond the longest lull the owner recognises as normal. Kept
-  generous on purpose: the arrival depends on the owner pulling new music in,
-  so a quiet stretch reflects their attention rather than a supply that
-  stopped.
+- **Observed cadence:** roughly monthly, with lulls of up to 4–5 months.
+  Measured 2026-11-24 from `Date Added` (`ITLibMediaItem.addedDate` through
+  the iTunesLibrary framework) over the 36 months to November 2026: songs and
+  music videos were added in 29 of the 36 months (24 with 5 or more adds);
+  the longest gap between such months was 4 months for the library and 5 for
+  the DJ playlists. This confirms the owner's 2026-10-03 statement. Caveat:
+  `Date Added` also moves when a file is re-added, such as a downloaded copy
+  replacing a cloud-only duplicate, so some months include re-adds.
+- **Dormancy horizon:** 12 months — about two and a half times the longest
+  measured lull (re-based 2026-11-24; the value is unchanged). Kept generous
+  on purpose: the arrival depends on the owner pulling new music in, so a
+  quiet stretch reflects their attention rather than a supply that stopped.
 - **Last inflow:** 2026-11-11 — 1,449 MP3s from the Lefaou hard drive added
   to the library (playlist "Lefaou import"), with genre and year left blank
   for categorization. Record only real arrivals here: `P-PLAN-009` reads the
@@ -308,16 +318,18 @@ and keeps agent context scoped to the area being worked on.
    may re-apply cloud changes after switching to an older library.
 2. **Genre taxonomy drift** — New genres accumulate inconsistently over time.
    LLM tagging enforces the canonical 31-genre list; periodic audits catch drift.
-3. **AppleScript field coverage** — Year and genre writes are proven in
-   production. BPM and Comments are read (`common/apple_music.py:213,219`) but
-   have no write path anywhere in the codebase; every writer sets year and genre
-   only. This blocks the BPM and Camelot-key work.
+3. **BPM and key depend on a manual Mixed In Key pass** — nothing in this repo
+   writes BPM or Comments, by decision (2026-11-24), so a track that skips
+   Mixed In Key stays out of the mixer. This happened to 53 DJ tracks before
+   the 2026-11-24 audit. Re-measuring BPM/key coverage at session start or
+   after an import catches it.
 
 ### Dependencies
 - **Apple Music** — macOS-specific; the program is tied to the Apple ecosystem
 - **ffmpeg/ffprobe** — required for media processing; installed via Homebrew
 - **Python 3.x** — core scripting language; see `requirements.txt`
 - **Rust toolchain** — required once to build `ydj_mixer_engine`; the Python optimizer is the fallback when it is not built
+- **Mixed In Key** — source of BPM and the Camelot key in Comments; versions 10 and 11 installed, run by hand
 - **Apple Music XML export** — still required by `library-management/cleanup.py`; absent as of 2026-09-19
 
 ### External APIs
@@ -351,10 +363,11 @@ and keeps agent context scoped to the area being worked on.
    canonical genres be handled — periodic review and expansion, or strict
    enforcement of the existing list?
 
-3. **BPM and Comments writes.** Whether AppleScript can write these reliably is
-   unproven. It blocks *automated* BPM and Camelot-key filling — but the measured
-   backlog is 15 and 17 tracks, so hand-correcting them in Music.app may retire
-   the need entirely. Decide whether the spike is still worth doing.
+3. *Resolved 2026-11-24 — BPM and Comments writes.* Not needed. BPM and key
+   come from Mixed In Key, and the gap found that day (53 tracks) was new
+   arrivals that skipped it, not missing tooling. The AppleScript write spike
+   and the in-repo BPM and key detection tasks were retired; see Architecture
+   Decisions.
 
 4. **Batch update concurrency.** What is the safe model for batch updates —
    one-at-a-time, batched, or transactional?
