@@ -92,9 +92,12 @@ and interactive inconsistency resolution. Live AppleScript reads and writes for
 year and genre, in production use.
 BPM and Camelot key come from Mixed In Key (see Architecture Decisions).
 **Open (measured 2026-11-24):** 43 DJ tracks lack BPM and 49 lack a key the
-mixer can read, 53 tracks in all; 39 of them were never run through Mixed In
-Key, and 26 arrived in October 2026 or later. The fix is an MIK pass over
-new arrivals, not new tooling.
+mixer can read, 53 tracks in all. 9 of them are in the playlist "Mixed in Keys
+Exlusions" on purpose (DJ mixes, medleys, full concerts), leaving 44 to fix:
+34 never run through Mixed In Key, 26 arrived in October 2026 or later. 40 of
+the 44 are in the playlist "Needs Mixed In Key (2026-11-24)"; the other 4
+have no local file or are a DRM subscription track. The fix is an MIK pass
+over new arrivals, not new tooling.
 
 ### Mixer — playlist optimization
 Harmonic mixing and BPM continuity solved as a track-ordering optimization over
@@ -178,7 +181,9 @@ warning, not an error. Building BPM detection, key detection or an
 AppleScript BPM/Comments write path in this repo would duplicate what Mixed
 In Key already does, so all three were retired on 2026-11-24. The cost is a
 manual step: new arrivals must be run through Mixed In Key, and the
-2026-11-24 audit found 53 DJ tracks that had not been.
+2026-11-24 audit found 44 DJ tracks that needed it. Tracks in the playlist
+"Mixed in Keys Exlusions" (DJ mixes, medleys, full concerts) are left
+without BPM/key on purpose and do not count as a gap.
 
 ### Artist spelling cleanup: consent per artist, backed by backup and journal
 `library-management/artist_spellings.py` writes Artist / Album Artist. Unlike the
@@ -278,7 +283,7 @@ and keeps agent context scoped to the area being worked on.
 ## Standing Conditions
 
 - **Mixer:** optimizes directly from an Apple Music playlist chosen per run (not a hardcoded name) and writes the result back as a new playlist; exact optimum for n ≤ 20. *Partially met: write-back and exact n ≤ 20 ship; the input playlist name is still the literal "Mixer input" at `mixer/mixer.py:221`. Carried by a [mixer] task.*
-- **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy. *Year/genre and taxonomy **met as of 2026-11-24**: across the 8,622 DJ tracks, **0 missing year, 0 missing genre (0.00%)**; 30 genre strings in use, 2 of them off-taxonomy — `Special` (2 tracks, deliberately retained) and `Alternative` (1 track, blocked; see Open Questions). BPM/key **not met**: BPM is absent on 43 tracks (0.50%) and 49 (0.57%) have no key the mixer can read (first word of Comments a valid Camelot key; 45 by the older anywhere-in-Comments pattern). Up from 15 and 17 on 2026-09-19 because recent arrivals skipped Mixed In Key; carried by a [library] task.*
+- **Library:** <5% of the DJ library missing year/genre; BPM and Camelot key populated for mixer-eligible tracks; consistent compound-genre taxonomy. *Year/genre and taxonomy **met as of 2026-11-24**: across the 8,622 DJ tracks, **0 missing year, 0 missing genre (0.00%)**; 30 genre strings in use, 2 of them off-taxonomy — `Special` (2 tracks, deliberately retained) and `Alternative` (1 track, blocked; see Open Questions). BPM/key **not met**: BPM is absent on 43 tracks (0.50%) and 49 (0.57%) have no key the mixer can read (first word of Comments a valid Camelot key; 45 by the older anywhere-in-Comments pattern). Leaving out the 9 deliberate exclusions, 44 tracks need fixing (38 without BPM, 40 without a readable key), up from 15 and 17 on 2026-09-19 because recent arrivals skipped Mixed In Key; carried by a [library] task.*
 - **Downloads:** files land in Apple-compatible formats with consistent `Artist - Title (type)` names. *Satisfied and stable since 2026-04-28. Qualitative, with no automated check.*
 - **Karaoke:** overlays render predictably for FCP `screen`/`add` blending across the channels in use. *Satisfied and stable since 2026-05-09. Qualitative, validated by eye per channel.*
 - **Infra:** no data-loss incidents from library writes; backup/restore documented and tested; **no script, command or skill in this program deletes a library track**. *No incidents to date, and the no-deletion property holds as of 2026-09-19. Backup/restore **met 2026-11-21**: `common/library_backup.py`, restore tested end to end through Music's Choose Library switch; a bulk write takes a fresh backup first. The no-deletion condition is what makes `--dry-run` sufficient in place of an isolated test library — if it is ever broken, that decision must be revisited.*
@@ -320,7 +325,7 @@ and keeps agent context scoped to the area being worked on.
    LLM tagging enforces the canonical 31-genre list; periodic audits catch drift.
 3. **BPM and key depend on a manual Mixed In Key pass** — nothing in this repo
    writes BPM or Comments, by decision (2026-11-24), so a track that skips
-   Mixed In Key stays out of the mixer. This happened to 53 DJ tracks before
+   Mixed In Key stays out of the mixer. This happened to 44 DJ tracks before
    the 2026-11-24 audit. Re-measuring BPM/key coverage at session start or
    after an import catches it.
 
@@ -364,8 +369,8 @@ and keeps agent context scoped to the area being worked on.
    enforcement of the existing list?
 
 3. *Resolved 2026-11-24 — BPM and Comments writes.* Not needed. BPM and key
-   come from Mixed In Key, and the gap found that day (53 tracks) was new
-   arrivals that skipped it, not missing tooling. The AppleScript write spike
+   come from Mixed In Key, and the gap found that day (44 tracks, after the 9
+   deliberate exclusions) was new arrivals that skipped it, not missing tooling. The AppleScript write spike
    and the in-repo BPM and key detection tasks were retired; see Architecture
    Decisions.
 
