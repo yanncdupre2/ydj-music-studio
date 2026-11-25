@@ -167,7 +167,9 @@ To rebuild an existing venv, move the old one to the Trash first.
 - maturin (builds the Rust mixer engine)
 
 `library-management/rename_music_file.py` imports tkinter, which Homebrew's
-python@3.14 does not include (`brew install python-tk@3.14` adds it).
+python@3.14 does not include on its own: it needs `python-tk@3.14` (installed
+2026-11-24, Tk 9.1; the script imports cleanly, the GUI has not been opened
+under Tk 9 yet).
 
 ### Library backup and AMPLibraryAgent
 ```bash

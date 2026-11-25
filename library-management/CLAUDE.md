@@ -51,7 +51,9 @@ and overrides anything older here.
 
 1. **Subscription tracks can't be written** by script (see `PROJECT-LOCAL-CONTEXT.md`)
 2. **XML dependency** - `cleanup.py` still reads the manual XML export
-3. **BPM / Comments** have no write path
+3. **BPM / Comments** are not written by this repo, by decision: Mixed In Key
+   writes BPM and the key (`07A - Energy 7`). Tracks lacking them need an MIK
+   pass, not new tooling (`PLANNING.md`, Architecture Decisions)
 
 ## Execution Constraints
 

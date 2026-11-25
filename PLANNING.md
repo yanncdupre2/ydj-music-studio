@@ -370,9 +370,9 @@ and keeps agent context scoped to the area being worked on.
 
 3. *Resolved 2026-11-24 — BPM and Comments writes.* Not needed. BPM and key
    come from Mixed In Key, and the gap found that day (44 tracks, after the 9
-   deliberate exclusions) was new arrivals that skipped it, not missing tooling. The AppleScript write spike
-   and the in-repo BPM and key detection tasks were retired; see Architecture
-   Decisions.
+   deliberate exclusions) was new arrivals that skipped it, not missing
+   tooling. The AppleScript write spike and the in-repo BPM and key detection
+   tasks were retired; see Architecture Decisions.
 
 4. **Batch update concurrency.** What is the safe model for batch updates —
    one-at-a-time, batched, or transactional?

@@ -193,7 +193,6 @@ python3 rename_files.py
 ### Phase 2: Library Management
 - LLM-powered genre auto-tagging using canonical taxonomy
 - Batch year lookup from MusicBrainz/Discogs APIs
-- BPM detection for tracks missing tempo data
 - Duplicate detection (similar tracks, different encodings)
 
 ### Phase 4: Safe Apple Music Write
