@@ -167,7 +167,7 @@ See [PLANNING.md](PLANNING.md) for the design breakdown and [PROJECT-LOCAL-CONTE
 
 ## Technology Stack
 
-- **Python 3.x** — pandas, numpy, mutagen, fuzzywuzzy
+- **Python 3.14** — pandas, numpy, mutagen
 - **Rust + PyO3 + maturin** — mixer SA + Held-Karp optimizer (`src/ydj_mixer_engine/`)
 - **Bash + ffmpeg** — media processing (downloads, karaoke-process); ffmpeg driven from Python for video repair (pillarbox, delogo)
 - **AppleScript** — live Apple Music reads + writes (year, genre, playlists)

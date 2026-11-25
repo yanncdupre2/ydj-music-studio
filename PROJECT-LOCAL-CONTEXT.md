@@ -152,17 +152,22 @@ ydj-music-studio/
 ### Python Environment Setup
 ```bash
 cd ~/Projects/ydj-music-studio
-python3 -m venv venv
+# Use python@3.14 explicitly: bare python3 is Homebrew's 3.15 (checked 2026-11-24)
+/opt/homebrew/opt/python@3.14/bin/python3.14 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
+Then build the Rust mixer engine into the venv (see Rust Engine Build below).
+To rebuild an existing venv, move the old one to the Trash first.
 
 ### Required Python Packages (requirements.txt)
-- pandas
+- pandas (brings in python-dateutil and tzdata)
 - numpy
 - mutagen (audio file metadata)
-- fuzzywuzzy (fuzzy string matching)
-- python-Levenshtein (fuzzywuzzy speedup)
+- maturin (builds the Rust mixer engine)
+
+`library-management/rename_music_file.py` imports tkinter, which Homebrew's
+python@3.14 does not include (`brew install python-tk@3.14` adds it).
 
 ### Library backup and AMPLibraryAgent
 ```bash
@@ -345,7 +350,9 @@ cd ~/Projects/ydj-music-studio
 # added/failed counts and does not roll back the tracks already added.
 ```
 
-### Rust Engine Build (required once after clone)
+### Rust Engine Build (after a clone and after every venv rebuild)
+Current pins (2026-11-24): pyo3 0.30, rand 0.10, built with rustc 1.100.
+Without the build the mixer falls back to the much slower Python loop.
 ```bash
 # Install Rust (one-time)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
